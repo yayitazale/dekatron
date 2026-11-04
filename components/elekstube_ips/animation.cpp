@@ -18,6 +18,7 @@ static const EffectInfo EFFECTS[] = {
     {Effect::SWEEP, "sweep", {0, 200, 255}},
     {Effect::PULSE, "pulse", {255, 40, 0}},
     {Effect::COUNTDOWN, "countdown", {255, 110, 20}},
+    {Effect::TEXT, "text", {255, 255, 255}},
 };
 
 Effect effect_from_name(const char *name) {

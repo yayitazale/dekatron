@@ -42,7 +42,7 @@ class ElekstubeIps : public Component {
 
   // Returns false when the request is invalid or a more urgent animation is running.
   bool play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
-                    const char *color);
+                    const char *color, const char *text, bool scroll);
   void play_effect(size_t index, float duration_s);
   void stop_animation() { this->stop_requested_.store(true); }
   std::string animation_state() const;
@@ -75,8 +75,11 @@ class ElekstubeIps : public Component {
   void send_command_(uint8_t command, const uint8_t *data = nullptr, size_t length = 0);
   void broadcast_command_(uint8_t command, const uint8_t *data = nullptr, size_t length = 0);
   void send_pixels_(const uint16_t *pixels, size_t count);
-  void set_window_(uint16_t first_column = 0, uint16_t last_column = 134);
+  void set_window_(uint16_t first_column = 0, uint16_t last_column = 134, uint16_t first_row = 0,
+                   uint16_t last_row = 239);
   bool draw_sweep_tube_(uint8_t tube, uint32_t elapsed_ms);
+  void draw_text_tube_(uint8_t tube, const uint8_t *glyphs, size_t count, int32_t text_left);
+  bool draw_text_frame_(uint32_t elapsed_ms);
   void draw_(uint8_t tube_mask, uint8_t pattern_tube, uint8_t mode, uint32_t frame);
   void draw_blank_(uint8_t tube_mask);
   void draw_jpeg_(uint8_t tube_mask, const uint8_t *jpeg, size_t size, uint8_t level_percent = 100);
@@ -142,6 +145,8 @@ class ElekstubeIps : public Component {
   uint8_t shown_digits_[6]{};
   uint16_t *sweep_lines_{nullptr};
   bool sweep_lines_valid_[6]{};
+  bool text_drawn_{false};
+  bool text_tube_blank_[6]{};
   uint8_t applied_brightness_{100};
   bool panels_powered_{true};
 

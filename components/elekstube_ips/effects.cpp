@@ -9,7 +9,6 @@ namespace elekstube_ips {
 
 static constexpr uint16_t WIDTH = 135;
 static constexpr uint16_t HEIGHT = 240;
-static constexpr uint8_t TUBE_COUNT = 6;
 
 static inline uint32_t mix_hash(uint32_t value) {
   value ^= value >> 16;
@@ -99,11 +98,10 @@ void render_sweep_line(const EffectFrame &frame, uint16_t *line) {
   static constexpr int32_t HALF_BAND = 110;
   static constexpr int32_t EDGE = 50;
   static constexpr uint32_t PIXELS_PER_SECOND = 400;
-  const int32_t travel = WIDTH * TUBE_COUNT + 2 * HALF_BAND;
+  const int32_t travel = TUBE_CANVAS_PIXELS + 2 * HALF_BAND;
   const int32_t position =
       static_cast<int32_t>(static_cast<uint64_t>(frame.elapsed_ms) * PIXELS_PER_SECOND / 1000 % travel) - HALF_BAND;
-  // Tube 5 is the leftmost one.
-  const int32_t tube_left = (TUBE_COUNT - 1 - frame.tube) * WIDTH;
+  const int32_t tube_left = tube_canvas_left(frame.tube);
   for (uint16_t x = 0; x < WIDTH; x++) {
     const int32_t inside = HALF_BAND - abs(tube_left + x - position);
     const uint16_t level = inside <= 0 ? 0 : inside >= EDGE ? 256 : inside * 256 / EDGE;

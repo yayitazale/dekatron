@@ -13,6 +13,7 @@ enum class Effect : uint8_t {
   SWEEP,
   PULSE,
   COUNTDOWN,
+  TEXT,
 };
 
 struct Rgb {
@@ -27,12 +28,26 @@ static constexpr uint8_t LOWEST_PRIORITY = 9;
 static constexpr uint32_t MAX_DURATION_MS = 3600000;
 static constexpr float DISPLAY_GAMMA = 2.2f;
 
+// Shapes moving across the tubes are laid out on a canvas that includes the physical gap between
+// screens, so they pass behind it instead of jumping. Adjusted by eye on the clock, starting from
+// a photo where the pitch was about 1.95 screen widths.
+static constexpr int32_t TUBE_GAP_PIXELS = 112;
+static constexpr int32_t TUBE_PITCH_PIXELS = 135 + TUBE_GAP_PIXELS;
+static constexpr int32_t TUBE_CANVAS_PIXELS = 5 * TUBE_PITCH_PIXELS + 135;
+
+// Tube 5 is the leftmost one.
+inline int32_t tube_canvas_left(uint8_t tube) { return (5 - tube) * TUBE_PITCH_PIXELS; }
+
 struct AnimationRequest {
   Effect effect{Effect::NONE};
   uint8_t tube_mask{0x3F};
   uint8_t priority{DEFAULT_PRIORITY};
   uint32_t duration_ms{10000};
   Rgb color{0, 0, 0};
+  bool control_leds{true};
+  bool scroll{false};
+  uint8_t text_length{0};
+  uint8_t text[64]{};  // glyph indices, see text.h
 };
 
 Effect effect_from_name(const char *name);
