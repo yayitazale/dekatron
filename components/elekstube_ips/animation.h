@@ -14,6 +14,7 @@ enum class Effect : uint8_t {
   PULSE,
   COUNTDOWN,
   TEXT,
+  CLIP,
 };
 
 struct Rgb {
@@ -46,6 +47,7 @@ struct AnimationRequest {
   Rgb color{0, 0, 0};
   bool control_leds{true};
   bool scroll{false};
+  uint8_t clip_index{0};
   uint8_t text_length{0};
   uint8_t text[64]{};  // glyph indices, see text.h
 };

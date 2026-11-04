@@ -10,6 +10,7 @@
 #include <freertos/FreeRTOS.h>
 
 #include "animation.h"
+#include "clip_library.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
@@ -42,7 +43,9 @@ class ElekstubeIps : public Component {
 
   // Returns false when the request is invalid or a more urgent animation is running.
   bool play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
-                    const char *color, const char *text, bool scroll);
+                    const char *color, const char *text, bool scroll, int loops);
+  bool download_clips(const char *url);
+  std::string clip_library_state() const { return this->clips_.state(); }
   void play_effect(size_t index, float duration_s);
   void stop_animation() { this->stop_requested_.store(true); }
   std::string animation_state() const;
@@ -80,6 +83,7 @@ class ElekstubeIps : public Component {
   bool draw_sweep_tube_(uint8_t tube, uint32_t elapsed_ms);
   void draw_text_tube_(uint8_t tube, const uint8_t *glyphs, size_t count, int32_t text_left);
   bool draw_text_frame_(uint32_t elapsed_ms);
+  bool draw_clip_frame_();
   void draw_(uint8_t tube_mask, uint8_t pattern_tube, uint8_t mode, uint32_t frame);
   void draw_blank_(uint8_t tube_mask);
   void draw_jpeg_(uint8_t tube_mask, const uint8_t *jpeg, size_t size, uint8_t level_percent = 100);
@@ -106,6 +110,7 @@ class ElekstubeIps : public Component {
   uint8_t *jpeg_pool_{nullptr};
   const uint8_t *face_pack_{nullptr};
   uint32_t face_pack_sets_{0};
+  ClipLibrary clips_;
   uint16_t x_offset_{52};
   uint16_t y_offset_{40};
   uint8_t madctl_{0x08};
@@ -147,6 +152,7 @@ class ElekstubeIps : public Component {
   bool sweep_lines_valid_[6]{};
   bool text_drawn_{false};
   bool text_tube_blank_[6]{};
+  uint32_t clip_shown_frames_[6]{};
   uint8_t applied_brightness_{100};
   bool panels_powered_{true};
 

@@ -207,12 +207,20 @@ void ElekstubeIps::update_led_pulse_() {
   call.perform();
 }
 
+bool ElekstubeIps::download_clips(const char *url) {
+  if (url[0] == '\0') {
+    ESP_LOGW(TAG, "Clip download without a URL");
+    return false;
+  }
+  return this->clips_.start_download(url);
+}
+
 bool ElekstubeIps::play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
-                                const char *color, const char *text, bool scroll) {
+                                const char *color, const char *text, bool scroll, int loops) {
   AnimationRequest request;
   if (strcmp(type, "effect") == 0) {
     request.effect = effect_from_name(name);
-    if (request.effect == Effect::NONE || request.effect == Effect::TEXT) {
+    if (request.effect == Effect::NONE || request.effect == Effect::TEXT || request.effect == Effect::CLIP) {
       ESP_LOGW(TAG, "Unknown effect: %s", name);
       return false;
     }
@@ -225,6 +233,13 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
     }
     request.scroll = scroll;
     // Text does not touch the LEDs unless the caller asks for a colour.
+    request.control_leds = color[0] != '\0';
+  } else if (strcmp(type, "clip") == 0) {
+    request.effect = Effect::CLIP;
+    if (!this->clips_.find(name, &request.clip_index)) {
+      ESP_LOGW(TAG, "Unknown clip: %s", name);
+      return false;
+    }
     request.control_leds = color[0] != '\0';
   } else {
     ESP_LOGW(TAG, "Unsupported animation type: %s", type);
@@ -249,6 +264,15 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
   }
   request.duration_ms = static_cast<uint32_t>(duration_s) * 1000;
   request.priority = static_cast<uint8_t>(priority);
+  if (request.effect == Effect::CLIP && loops > 0) {
+    const ClipInfo info = this->clips_.info(request.clip_index);
+    const uint64_t total_ms = static_cast<uint64_t>(info.frames) * 1000 * loops / info.fps;
+    if (total_ms > MAX_DURATION_MS) {
+      ESP_LOGW(TAG, "Clip loops exceed the maximum duration: %d", loops);
+      return false;
+    }
+    request.duration_ms = total_ms > 0 ? static_cast<uint32_t>(total_ms) : 1;
+  }
   if (request.effect == Effect::TEXT) {
     uint8_t capacity = 0;
     for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
@@ -411,12 +435,15 @@ void ElekstubeIps::load_face_pack_() {
   }
 
   const auto *base = static_cast<const uint8_t *>(mapped);
+  // The mapping stays for the life of the program: the clip library reads from it too.
+  this->clips_.attach(partition, base);
+  this->clips_.load();
+
   FacePackHeader header;
   memcpy(&header, base, sizeof(header));
   if (memcmp(header.magic, FACE_PACK_MAGIC, sizeof(header.magic)) != 0 || header.set_count == 0 ||
       header.set_count > FACE_PACK_MAX_SETS) {
     ESP_LOGI(TAG, "No face pack in the partition");
-    esp_partition_munmap(handle);
     return;
   }
 
@@ -424,9 +451,8 @@ void ElekstubeIps::load_face_pack_() {
     FacePackSet set;
     memcpy(&set, base + sizeof(FacePackHeader) + index * sizeof(FacePackSet), sizeof(set));
     for (uint8_t digit = 0; digit < DIGIT_COUNT; digit++) {
-      if (set.offsets[digit] > partition->size || set.sizes[digit] > partition->size - set.offsets[digit]) {
+      if (set.offsets[digit] > FACE_REGION_BYTES || set.sizes[digit] > FACE_REGION_BYTES - set.offsets[digit]) {
         ESP_LOGW(TAG, "Face pack is damaged, ignoring it");
-        esp_partition_munmap(handle);
         return;
       }
     }
@@ -828,10 +854,60 @@ bool ElekstubeIps::draw_text_frame_(uint32_t elapsed_ms) {
   return true;
 }
 
+bool ElekstubeIps::draw_clip_frame_() {
+  const AnimationRequest &request = this->active_request_;
+  if (!this->clips_.ready()) {
+    // A download is replacing the library.
+    this->stop_requested_.store(true);
+    vTaskDelay(1);
+    return false;
+  }
+  const ClipInfo info = this->clips_.info(request.clip_index);
+  const auto current_frame = [&]() {
+    const uint64_t elapsed = esp_timer_get_time() / 1000 - this->animation_start_ms_;
+    return static_cast<uint32_t>(elapsed * info.fps / 1000 % info.frames);
+  };
+
+  bool drew = false;
+  if (info.images_per_frame == 1) {
+    const uint32_t frame = current_frame();
+    if (frame != this->clip_shown_frames_[0]) {
+      const uint8_t *data;
+      uint32_t size;
+      this->clips_.image(request.clip_index, frame, 0, &data, &size);
+      this->draw_jpeg_(request.tube_mask, data, size);
+      this->clip_shown_frames_[0] = frame;
+      drew = true;
+    }
+  } else {
+    for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
+      if ((request.tube_mask & (1 << tube)) == 0) {
+        continue;
+      }
+      const uint32_t frame = current_frame();
+      if (frame != this->clip_shown_frames_[tube]) {
+        const uint8_t *data;
+        uint32_t size;
+        // Images are stored left to right, and tube 5 is the leftmost one.
+        this->clips_.image(request.clip_index, frame, TUBE_COUNT - 1 - tube, &data, &size);
+        this->draw_jpeg_(1 << tube, data, size);
+        this->clip_shown_frames_[tube] = frame;
+        drew = true;
+        vTaskDelay(1);
+      }
+    }
+  }
+  vTaskDelay(1);
+  return drew;
+}
+
 bool ElekstubeIps::draw_animation_frame_(uint32_t elapsed_ms) {
   const AnimationRequest &request = this->active_request_;
   if (request.effect == Effect::TEXT) {
     return this->draw_text_frame_(elapsed_ms);
+  }
+  if (request.effect == Effect::CLIP) {
+    return this->draw_clip_frame_();
   }
   if (request.effect == Effect::COUNTDOWN) {
     const uint32_t remaining = (request.duration_ms - elapsed_ms + 999) / 1000;
@@ -902,6 +978,7 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
     memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
     memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
     this->text_drawn_ = false;
+    memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
     this->led_color_.store((request.color.r << 16) | (request.color.g << 8) | request.color.b);
     // Replacing an animation that changed the LEDs with one that does not must still give them back.
     this->led_event_.store(request.control_leds ? LED_EVENT_START : LED_EVENT_END);
@@ -986,6 +1063,7 @@ void ElekstubeIps::task_loop_() {
         memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
         memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
         this->text_drawn_ = false;
+        memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
       }
       uint8_t animated_tubes = 0;
       if (this->animation_active_) {

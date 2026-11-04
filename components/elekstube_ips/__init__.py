@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import light, time as time_
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIME_ID
 
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    include_builtin_idf_component("esp_http_client")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     clock = await cg.get_variable(config[CONF_TIME_ID])

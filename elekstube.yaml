@@ -28,6 +28,12 @@ text_sensor:
     update_interval: 1s
     lambda: return id(tubes).animation_state();
   - platform: template
+    name: Clip Library
+    icon: mdi:movie-open
+    state_topic: elekstube/${name}/clips/state
+    update_interval: 2s
+    lambda: return id(tubes).clip_library_state();
+  - platform: template
     name: RTC Time at Boot
     icon: mdi:clock-check-outline
     entity_category: diagnostic
@@ -69,11 +75,15 @@ mqtt:
   topic_prefix: elekstube/${name}
   discovery: true
   on_json_message:
-    topic: elekstube/${name}/animation/play
-    then:
-      - lambda: |-
-          id(tubes).play_request(x["type"] | "effect", x["name"] | "", x["tubes"] | "all", x["duration"] | 10,
-                                 x["priority"] | 2, x["color"] | "", x["text"] | "", x["scroll"] | false);
+    - topic: elekstube/${name}/animation/play
+      then:
+        - lambda: |-
+            id(tubes).play_request(x["type"] | "effect", x["name"] | "", x["tubes"] | "all", x["duration"] | 10,
+                                   x["priority"] | 2, x["color"] | "", x["text"] | "", x["scroll"] | false,
+                                   x["loop"] | 0);
+    - topic: elekstube/${name}/clips/download
+      then:
+        - lambda: id(tubes).download_clips(x["url"] | "");
   on_message:
     topic: elekstube/${name}/animation/stop
     then:

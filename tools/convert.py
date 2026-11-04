@@ -16,7 +16,7 @@ from PIL import Image
 
 WIDTH, HEIGHT = 135, 240
 PARTITION_OFFSET = 0x2E0000
-PARTITION_BYTES = 0x120000
+PARTITION_BYTES = 0x40000  # the rest of the partition holds the clip library
 MAGIC = b"EKFP"
 MAX_SETS = 8
 DIGITS = 10
