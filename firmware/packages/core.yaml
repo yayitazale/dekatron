@@ -40,6 +40,60 @@ elekstube_ips:
   time_id: rtc
   leds_id: leds
 
+# What the physical buttons do. Any press first skips the animations after starting.
+script:
+  - id: press_left
+    then:
+      - if:
+          condition:
+            lambda: return !id(tubes).skip_startup();
+          then:
+            - select.previous:
+                id: clock_face
+                cycle: true
+  - id: press_right
+    then:
+      - if:
+          condition:
+            lambda: return !id(tubes).skip_startup();
+          then:
+            - select.next:
+                id: clock_face
+                cycle: true
+  - id: press_mode
+    then:
+      - if:
+          condition:
+            lambda: return !id(tubes).skip_startup();
+          then:
+            - lambda: id(tubes).toggle_countdown(id(countdown_minutes).state * 60);
+  - id: press_power
+    then:
+      - if:
+          condition:
+            lambda: return !id(tubes).skip_startup();
+          then:
+            - switch.toggle: displays
+  # Holding Mode for 10 seconds forgets the settings. Releasing it earlier cancels, but once the
+  # screens have flashed the settings go either way, so a flash is never followed by nothing.
+  - id: watch_mode_hold
+    mode: restart
+    then:
+      - delay: 10s
+      - script.execute: forget_settings
+  - id: forget_settings
+    mode: single
+    then:
+      - lambda: id(tubes).flash_displays();
+      - delay: 1600ms
+      - logger.log:
+          level: WARN
+          tag: clock
+          format: Forgetting the settings and restarting
+      - lambda: |-
+          global_preferences->reset();
+          App.safe_reboot();
+
 button:
   - platform: template
     name: Play Animation
@@ -55,6 +109,7 @@ button:
 switch:
   - platform: template
     name: Displays
+    id: displays
     icon: mdi:monitor
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
@@ -93,6 +148,18 @@ switch:
       - lambda: id(tubes).set_night_enabled(false);
 
 number:
+  - platform: template
+    name: Countdown Minutes
+    id: countdown_minutes
+    icon: mdi:timer-sand
+    entity_category: config
+    unit_of_measurement: min
+    min_value: 1
+    max_value: 60
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: 5
   - platform: template
     name: Animation Duration
     id: animation_duration
@@ -183,6 +250,7 @@ select:
       - lambda: id(tubes).set_transition(i);
   - platform: template
     name: Clock Face
+    id: clock_face
     icon: mdi:clock-digital
     optimistic: true
     restore_value: true

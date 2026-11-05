@@ -20,15 +20,34 @@ binary_sensor:
   - platform: gpio
     name: Left Button
     pin: {number: GPIO33, mode: INPUT, inverted: true}
+    filters: [delayed_on_off: 30ms]
+    on_press:
+      - script.execute: press_left
   - platform: gpio
     name: Mode Button
     pin: {number: GPIO32, mode: INPUT, inverted: true}
+    filters: [delayed_on_off: 30ms]
+    on_press:
+      - script.execute: watch_mode_hold
+    on_release:
+      - script.stop: watch_mode_hold
+    on_click:
+      - min_length: 30ms
+        max_length: 3s
+        then:
+          - script.execute: press_mode
   - platform: gpio
     name: Right Button
     pin: {number: GPIO35, mode: INPUT, inverted: true}
+    filters: [delayed_on_off: 30ms]
+    on_press:
+      - script.execute: press_right
   - platform: gpio
     name: Power Button
     pin: {number: GPIO34, mode: INPUT, inverted: true}
+    filters: [delayed_on_off: 30ms]
+    on_press:
+      - script.execute: press_power
 
 light:
   - platform: esp32_rmt_led_strip

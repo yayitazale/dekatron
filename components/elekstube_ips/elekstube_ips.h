@@ -24,6 +24,9 @@ enum DisplayMode : uint8_t {
   MODE_IDENTIFY = 1,
 };
 
+// What the clock shows after it starts, until it reaches the time.
+enum class StartupStage : uint8_t { BOOT, CONNECTING, ONLINE, SETUP, DONE };
+
 class ElekstubeIps : public Component {
  public:
   void setup() override;
@@ -46,6 +49,12 @@ class ElekstubeIps : public Component {
   void stop_animation() { this->stop_requested_.store(true); }
   std::string animation_state() const;
   void set_transition(size_t transition) { this->transition_.store(static_cast<uint8_t>(transition)); }
+  // Starts a countdown, or cancels the one that is running.
+  void toggle_countdown(int duration_s);
+  // A white pulse on every tube, over any other animation, to confirm something that is about to happen.
+  void flash_displays();
+  // Returns true if a button press was used to skip the startup, and has no other meaning then.
+  bool skip_startup();
 
   void set_mode(size_t mode);
   void set_face(size_t face);
@@ -89,6 +98,14 @@ class ElekstubeIps : public Component {
   void draw_effect_(uint8_t tube_mask, uint8_t tube, uint32_t elapsed_ms);
   bool draw_animation_frame_(uint32_t elapsed_ms);  // true when something reached the panels
   void update_animation_(int64_t now_ms);
+  void begin_animation_(int64_t now_ms);
+  bool start_clip_(const char *name, uint32_t duration_ms, int64_t now_ms);
+  void enter_startup_stage_(StartupStage stage, int64_t now_ms);
+  void update_startup_(int64_t now_ms, bool time_valid);
+  void draw_setup_screen_();
+  void update_setup_client_();
+  void draw_setup_qr_(uint8_t tube, const char *text);
+  void draw_setup_icon_(uint8_t tube, const uint8_t *icon, size_t size);
   uint16_t current_dim_() const;
   bool submit_(const AnimationRequest &request);
   void apply_led_event_();
@@ -127,6 +144,12 @@ class ElekstubeIps : public Component {
   std::atomic<uint8_t> transition_{0};
   std::atomic<bool> redraw_{true};
   std::atomic<bool> stop_requested_{false};
+  std::atomic<bool> skip_startup_requested_{false};
+  std::atomic<bool> wifi_connected_{false};
+  std::atomic<bool> wifi_configured_{false};
+  std::atomic<bool> setup_client_joined_{false};
+  std::string setup_url_;  // written before setup_client_joined_ becomes true
+  uint32_t last_setup_client_check_ms_{0};
   std::atomic<float> fps_{0.0f};
   portMUX_TYPE request_lock_ = portMUX_INITIALIZER_UNLOCKED;
   AnimationRequest pending_request_;  // guarded by request_lock_
@@ -140,8 +163,13 @@ class ElekstubeIps : public Component {
   std::atomic<uint8_t> led_event_{0};
   std::atomic<uint32_t> led_color_{0};
   std::atomic<uint32_t> animation_start_ms32_{0};
+  std::atomic<StartupStage> startup_stage_{StartupStage::BOOT};
 
   // Owned by the drawing task.
+  int64_t startup_stage_start_ms_{0};
+  bool finish_at_loop_end_{false};
+  bool setup_drawn_{false};
+  bool setup_qr_shows_url_{false};
   AnimationRequest active_request_;
   bool animation_active_{false};
   int64_t animation_start_ms_{0};

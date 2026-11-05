@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIME_ID
 
 CODEOWNERS = []
-DEPENDENCIES = ["esp32", "time"]
+DEPENDENCIES = ["esp32", "time", "wifi"]
 
 CONF_LEDS_ID = "leds_id"
 CONF_X_OFFSET = "x_offset"

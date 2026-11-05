@@ -13,7 +13,13 @@
 
 #include "effects.h"
 #include "esphome/components/light/light_call.h"
+#include "esphome/components/wifi/wifi_component.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <esp_wifi.h>
+#include "qrcodegen.h"
+#include "setup_icons.h"
 #include "text.h"
 
 namespace esphome {
@@ -45,6 +51,24 @@ static constexpr uint32_t LED_PULSE_INTERVAL_MS = 33;
 static constexpr uint8_t DIGIT_COUNT = 10;
 static constexpr uint8_t DIGIT_BLANK = DIGIT_COUNT;
 static constexpr uint8_t DIGIT_UNKNOWN = 0xFF;
+
+// Tube 5 is the leftmost one.
+static constexpr uint8_t CENTRE_LEFT_TUBE = 3;
+static constexpr uint8_t CENTRE_RIGHT_TUBE = 2;
+static constexpr uint32_t COUNTDOWN_FINAL_SECONDS = 10;
+
+// A theme replaces what the clock shows at each of these moments by providing a clip with its name.
+static const char *const CLIP_BOOT = "boot";
+static const char *const CLIP_CONNECTING = "connecting";
+static const char *const CLIP_ONLINE = "online";
+static const char *const CLIP_COUNTDOWN_END = "countdown_end";
+static constexpr uint32_t ONLINE_FALLBACK_MS = 2000;
+static constexpr uint32_t FLASH_MS = 1600;  // one period of the pulse: dark, white, dark
+static constexpr int64_t CONNECTING_TIMEOUT_MS = 30000;
+
+static constexpr int SETUP_QR_MAX_VERSION = 5;
+static constexpr int SETUP_QR_QUIET_MODULES = 2;
+static constexpr uint32_t SETUP_CLIENT_CHECK_MS = 500;
 static constexpr TickType_t CLOCK_POLL = pdMS_TO_TICKS(50);
 static constexpr uint8_t TRANSITION_FADE = 1;
 static constexpr uint8_t LED_EVENT_NONE = 0;
@@ -184,6 +208,9 @@ void ElekstubeIps::setup() {
 }
 
 void ElekstubeIps::loop() {
+  this->wifi_connected_.store(wifi::global_wifi_component->is_connected());
+  this->wifi_configured_.store(wifi::global_wifi_component->has_sta());
+  this->update_setup_client_();
   this->apply_led_event_();
   this->update_led_pulse_();
 }
@@ -204,6 +231,48 @@ void ElekstubeIps::update_led_pulse_() {
   call.set_transition_length(0);
   call.set_brightness(powf(light < LED_PULSE_MIN ? LED_PULSE_MIN : light, 1.0f / LED_GAMMA));
   call.perform();
+}
+
+void ElekstubeIps::update_setup_client_() {
+  const uint32_t now_ms = millis();
+  if (this->startup_stage_.load() != StartupStage::SETUP ||
+      now_ms - this->last_setup_client_check_ms_ < SETUP_CLIENT_CHECK_MS) {
+    return;
+  }
+  this->last_setup_client_check_ms_ = now_ms;
+  wifi_sta_list_t clients{};
+  const bool joined = esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0;
+  if (joined && this->setup_url_.empty()) {
+    char address[network::IP_ADDRESS_BUFFER_SIZE];
+    this->setup_url_ = std::string("http://") + wifi::global_wifi_component->wifi_soft_ap_ip().str_to(address);
+  }
+  this->setup_client_joined_.store(joined);
+}
+
+void ElekstubeIps::toggle_countdown(int duration_s) {
+  if (static_cast<Effect>(this->active_effect_.load()) == Effect::COUNTDOWN) {
+    this->stop_animation();
+    return;
+  }
+  this->play_request("effect", "countdown", "all", duration_s, DEFAULT_PRIORITY, "", "", false, 0);
+}
+
+void ElekstubeIps::flash_displays() {
+  AnimationRequest request;
+  request.effect = Effect::PULSE;
+  request.color = {255, 255, 255};
+  request.control_leds = false;
+  request.priority = 1;
+  request.duration_ms = FLASH_MS;
+  this->submit_(request);
+}
+
+bool ElekstubeIps::skip_startup() {
+  if (this->startup_stage_.load() == StartupStage::DONE) {
+    return false;
+  }
+  this->skip_startup_requested_.store(true);
+  return true;
 }
 
 bool ElekstubeIps::download_clips(const char *url) {
@@ -906,6 +975,10 @@ bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
   const int64_t started_us = esp_timer_get_time();
   const uint32_t frame = this->scene_frames_drawn_ % info.frames;
   if (frame == 0) {
+    if (this->scene_frames_drawn_ > 0 && this->finish_at_loop_end_) {
+      this->stop_requested_.store(true);
+      return false;
+    }
     if (this->scene_frames_drawn_ > 0) {
       ESP_LOGI(TAG, "Scene loop: %u frames in %u ms, slowest frame %u us", static_cast<unsigned>(info.frames),
                static_cast<unsigned>(elapsed_ms), static_cast<unsigned>(this->scene_slowest_us_));
@@ -1005,10 +1078,16 @@ bool ElekstubeIps::draw_animation_frame_(uint32_t elapsed_ms) {
     const uint32_t hours = remaining / 3600;
     const uint32_t minutes = remaining / 60 % 60;
     const uint32_t seconds = remaining % 60;
-    const uint8_t digits[TUBE_COUNT] = {
+    uint8_t digits[TUBE_COUNT] = {
         static_cast<uint8_t>(seconds % 10), static_cast<uint8_t>(seconds / 10), static_cast<uint8_t>(minutes % 10),
         static_cast<uint8_t>(minutes / 10), static_cast<uint8_t>(hours % 10),   DIGIT_BLANK,
     };
+    if (remaining <= COUNTDOWN_FINAL_SECONDS && request.tube_mask == ALL_TUBES) {
+      // The last seconds move to the two centre tubes, where the launch will happen.
+      memset(digits, DIGIT_BLANK, sizeof(digits));
+      digits[CENTRE_RIGHT_TUBE] = static_cast<uint8_t>(seconds % 10);
+      digits[CENTRE_LEFT_TUBE] = static_cast<uint8_t>(seconds / 10);
+    }
     for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
       if ((request.tube_mask & (1 << tube)) != 0 && digits[tube] != this->shown_digits_[tube]) {
         this->draw_digit_(tube, digits[tube], false);
@@ -1058,24 +1137,9 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
 
   const bool stop = this->stop_requested_.exchange(false);
   if (started) {
-    const AnimationRequest &request = this->active_request_;
-    this->animation_active_ = true;
-    this->animation_start_ms_ = now_ms;
-    this->active_priority_.store(request.priority);
-    this->active_effect_.store(static_cast<uint8_t>(request.effect));
-    this->active_duration_s_.store(request.duration_ms / 1000);
-    this->active_elapsed_s_.store(0);
-    this->animation_start_ms32_.store(static_cast<uint32_t>(now_ms));
-    memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
-    memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
-    this->text_drawn_ = false;
-    memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
-    this->scene_frames_drawn_ = 0;
-    this->scene_slowest_us_ = 0;
-    this->led_color_.store((request.color.r << 16) | (request.color.g << 8) | request.color.b);
-    // Replacing an animation that changed the LEDs with one that does not must still give them back.
-    this->led_event_.store(request.control_leds ? LED_EVENT_START : LED_EVENT_END);
-    ESP_LOGI(TAG, "Animation started: %s", effect_name(request.effect));
+    // A request from outside ends the startup, as it means the clock is already in use.
+    this->startup_stage_.store(StartupStage::DONE);
+    this->begin_animation_(now_ms);
     return;
   }
   if (!this->animation_active_) {
@@ -1084,6 +1148,10 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
   const int64_t elapsed = now_ms - this->animation_start_ms_;
   this->active_elapsed_s_.store(static_cast<uint32_t>(elapsed / 1000));
   if (stop || elapsed >= this->active_request_.duration_ms) {
+    if (!stop && this->active_request_.effect == Effect::COUNTDOWN && this->active_request_.tube_mask == ALL_TUBES &&
+        this->start_clip_(CLIP_COUNTDOWN_END, 0, now_ms)) {
+      return;
+    }
     this->animation_active_ = false;
     this->active_priority_.store(0);
     this->active_effect_.store(static_cast<uint8_t>(Effect::NONE));
@@ -1091,6 +1159,214 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
     this->redraw_.store(true);
     ESP_LOGI(TAG, "Animation finished");
   }
+}
+
+void ElekstubeIps::begin_animation_(int64_t now_ms) {
+  const AnimationRequest &request = this->active_request_;
+  this->animation_active_ = true;
+  this->animation_start_ms_ = now_ms;
+  this->active_priority_.store(request.priority);
+  this->active_effect_.store(static_cast<uint8_t>(request.effect));
+  this->active_duration_s_.store(request.duration_ms / 1000);
+  this->active_elapsed_s_.store(0);
+  this->animation_start_ms32_.store(static_cast<uint32_t>(now_ms));
+  memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
+  memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
+  this->text_drawn_ = false;
+  memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
+  this->scene_frames_drawn_ = 0;
+  this->scene_slowest_us_ = 0;
+  this->finish_at_loop_end_ = false;
+  this->led_color_.store((request.color.r << 16) | (request.color.g << 8) | request.color.b);
+  // Replacing an animation that changed the LEDs with one that does not must still give them back.
+  this->led_event_.store(request.control_leds ? LED_EVENT_START : LED_EVENT_END);
+  ESP_LOGI(TAG, "Animation started: %s", effect_name(request.effect));
+}
+
+// A duration of 0 plays the clip once. Returns false if the clip is not in the library.
+bool ElekstubeIps::start_clip_(const char *name, uint32_t duration_ms, int64_t now_ms) {
+  AnimationRequest request;
+  request.effect = Effect::CLIP;
+  if (!this->clips_.find(name, &request.clip_index)) {
+    return false;
+  }
+  const ClipInfo info = this->clips_.info(request.clip_index);
+  request.control_leds = false;
+  request.duration_ms = duration_ms != 0 ? duration_ms : info.frames * 1000 / info.fps;
+  this->active_request_ = request;
+  this->begin_animation_(now_ms);
+  return true;
+}
+
+void ElekstubeIps::enter_startup_stage_(StartupStage stage, int64_t now_ms) {
+  this->startup_stage_.store(stage);
+  this->startup_stage_start_ms_ = now_ms;
+  AnimationRequest fallback;
+  switch (stage) {
+    case StartupStage::BOOT:
+      this->start_clip_(CLIP_BOOT, 0, now_ms);
+      break;
+    case StartupStage::CONNECTING:
+      if (!this->start_clip_(CLIP_CONNECTING, MAX_DURATION_MS, now_ms)) {
+        fallback.effect = Effect::SWEEP;
+        fallback.color = effect_default_color(Effect::SWEEP);
+        fallback.control_leds = false;
+        fallback.duration_ms = MAX_DURATION_MS;
+        this->active_request_ = fallback;
+        this->begin_animation_(now_ms);
+      }
+      break;
+    case StartupStage::ONLINE:
+      if (!this->start_clip_(CLIP_ONLINE, 0, now_ms)) {
+        fallback.effect = Effect::PULSE;
+        fallback.color = {0, 200, 80};
+        fallback.control_leds = false;
+        fallback.duration_ms = ONLINE_FALLBACK_MS;
+        this->active_request_ = fallback;
+        this->begin_animation_(now_ms);
+      }
+      break;
+    case StartupStage::SETUP:
+      this->setup_drawn_ = false;
+      break;
+    case StartupStage::DONE:
+      this->redraw_.store(true);
+      break;
+  }
+}
+
+void ElekstubeIps::update_startup_(int64_t now_ms, bool time_valid) {
+  const StartupStage stage = this->startup_stage_.load();
+  if (stage == StartupStage::DONE) {
+    return;
+  }
+  if (this->skip_startup_requested_.exchange(false)) {
+    this->stop_requested_.store(this->animation_active_);
+    this->enter_startup_stage_(StartupStage::DONE, now_ms);
+    return;
+  }
+  const bool connected = this->wifi_connected_.load();
+  const bool configured = this->wifi_configured_.load();
+  switch (stage) {
+    case StartupStage::BOOT:
+      if (!this->animation_active_) {
+        const StartupStage next = connected    ? StartupStage::ONLINE
+                                  : configured ? StartupStage::CONNECTING
+                                               : StartupStage::SETUP;
+        this->enter_startup_stage_(next, now_ms);
+      }
+      break;
+    case StartupStage::CONNECTING:
+      if (!this->animation_active_) {
+        this->enter_startup_stage_(connected ? StartupStage::ONLINE : StartupStage::CONNECTING, now_ms);
+      } else if (connected) {
+        // A scene ends when the lander is out of sight, so the landing can follow without a jump.
+        if (this->active_request_.effect == Effect::CLIP) {
+          this->finish_at_loop_end_ = true;
+        } else {
+          this->stop_requested_.store(true);
+        }
+      } else if (time_valid && now_ms - this->startup_stage_start_ms_ >= CONNECTING_TIMEOUT_MS) {
+        // The time matters more: Wi-Fi keeps trying in the background.
+        this->stop_requested_.store(true);
+        this->enter_startup_stage_(StartupStage::DONE, now_ms);
+      }
+      break;
+    case StartupStage::ONLINE:
+      if (!this->animation_active_) {
+        this->enter_startup_stage_(StartupStage::DONE, now_ms);
+      }
+      break;
+    case StartupStage::SETUP:
+      if (connected) {
+        this->enter_startup_stage_(StartupStage::ONLINE, now_ms);
+      }
+      break;
+    case StartupStage::DONE:
+      break;
+  }
+}
+
+void ElekstubeIps::draw_setup_screen_() {
+  // The code first joins the network of the clock. Not every phone then opens the setup page by
+  // itself, so once one has joined, the code opens that page.
+  const bool show_url = this->setup_client_joined_.load();
+  if (!this->setup_drawn_ || show_url != this->setup_qr_shows_url_) {
+    if (!this->setup_drawn_) {
+      this->draw_blank_(ALL_TUBES);
+    } else {
+      this->draw_blank_(1 << CENTRE_RIGHT_TUBE);  // the two codes can differ in size
+    }
+    if (show_url) {
+      this->draw_setup_icon_(CENTRE_LEFT_TUBE, SETUP_ICON_GLOBE, sizeof(SETUP_ICON_GLOBE));
+    } else {
+      this->draw_setup_icon_(CENTRE_LEFT_TUBE, SETUP_ICON_WIFI, sizeof(SETUP_ICON_WIFI));
+    }
+    char text[96];
+    if (show_url) {
+      snprintf(text, sizeof(text), "%s", this->setup_url_.c_str());
+    } else {
+      snprintf(text, sizeof(text), "WIFI:T:nopass;S:%s;;", App.get_name().c_str());
+    }
+    this->draw_setup_qr_(CENTRE_RIGHT_TUBE, text);
+    this->setup_drawn_ = true;
+    this->setup_qr_shows_url_ = show_url;
+  }
+}
+
+void ElekstubeIps::draw_setup_qr_(uint8_t tube, const char *text) {
+  uint8_t code[qrcodegen_BUFFER_LEN_FOR_VERSION(SETUP_QR_MAX_VERSION)];
+  uint8_t scratch[qrcodegen_BUFFER_LEN_FOR_VERSION(SETUP_QR_MAX_VERSION)];
+  if (!qrcodegen_encodeText(text, scratch, code, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, SETUP_QR_MAX_VERSION,
+                            qrcodegen_Mask_AUTO, true)) {
+    ESP_LOGE(TAG, "Could not build the setup QR code");
+    return;
+  }
+  // Dark modules on a light panel, with the quiet zone that scanners need around them.
+  const int modules = qrcodegen_getSize(code);
+  const int total = modules + 2 * SETUP_QR_QUIET_MODULES;
+  const int scale = WIDTH / total;
+  const int side = total * scale;
+  const uint16_t first_column = (WIDTH - side) / 2;
+  const uint16_t first_row = (HEIGHT - side) / 2;
+  const uint16_t dim = this->current_dim_();
+  const uint16_t light = to_wire(rgb565((28 * dim) >> 8, (56 * dim) >> 8, (26 * dim) >> 8));
+
+  this->select_(1 << tube);
+  this->set_window_(first_column, first_column + side - 1, first_row, first_row + side - 1);
+  size_t filled = 0;
+  for (int row = 0; row < side; row++) {
+    for (int column = 0; column < side; column++) {
+      const bool dark = qrcodegen_getModule(code, column / scale - SETUP_QR_QUIET_MODULES,
+                                            row / scale - SETUP_QR_QUIET_MODULES);
+      this->strip_[filled++] = dark ? 0x0000 : light;
+    }
+    if (filled + side > STRIP_PIXELS) {
+      this->send_pixels_(this->strip_, filled);
+      filled = 0;
+    }
+  }
+  if (filled > 0) {
+    this->send_pixels_(this->strip_, filled);
+  }
+  this->select_(0);
+}
+
+// The icons store levels of light, so they share the code that draws the patches of a scene.
+void ElekstubeIps::draw_setup_icon_(uint8_t tube, const uint8_t *icon, size_t size) {
+  uint16_t palette[256]{};
+  const uint32_t dim = this->current_dim_();
+  for (uint32_t level = 0; level < SETUP_ICON_LEVELS; level++) {
+    const uint32_t shade = level * dim / (SETUP_ICON_LEVELS - 1);
+    palette[level] = to_wire(rgb565((31 * shade) >> 8, (63 * shade) >> 8, (31 * shade) >> 8));
+  }
+  ScenePatch patch{};
+  patch.tube = tube;
+  patch.x = (WIDTH - SETUP_ICON_SIZE) / 2;
+  patch.y = (HEIGHT - SETUP_ICON_SIZE) / 2;
+  patch.width = SETUP_ICON_SIZE;
+  patch.height = SETUP_ICON_SIZE;
+  this->draw_scene_patch_(patch, icon, size, palette);
 }
 
 void ElekstubeIps::draw_clock_(const ESPTime &now, uint8_t skip_mask) {
@@ -1125,6 +1401,7 @@ void ElekstubeIps::task_entry_(void *arg) { static_cast<ElekstubeIps *>(arg)->ta
 
 void ElekstubeIps::task_loop_() {
   this->init_panels_();
+  this->enter_startup_stage_(StartupStage::BOOT, esp_timer_get_time() / 1000);
 
   uint32_t frames_in_window = 0;
   int64_t window_start = esp_timer_get_time();
@@ -1143,6 +1420,7 @@ void ElekstubeIps::task_loop_() {
     const uint8_t mode = this->mode_.load();
     const int64_t now_ms = esp_timer_get_time() / 1000;
     this->update_animation_(now_ms);
+    this->update_startup_(now_ms, now.is_valid());
     this->apply_brightness_(this->target_brightness_(now));
     if (!this->panels_powered_) {
       vTaskDelay(CLOCK_POLL);
@@ -1150,6 +1428,11 @@ void ElekstubeIps::task_loop_() {
     }
 
     const bool redraw = this->redraw_.exchange(false);
+    if (mode == MODE_CLOCK && this->startup_stage_.load() == StartupStage::SETUP) {
+      this->draw_setup_screen_();
+      vTaskDelay(CLOCK_POLL);
+      continue;
+    }
     if (mode == MODE_CLOCK) {
       if (redraw) {
         memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
