@@ -11,7 +11,6 @@
 #include <cmath>
 #include <cstring>
 
-#include "bench_jpegs.h"
 #include "effects.h"
 #include "esphome/components/light/light_call.h"
 #include "esphome/core/log.h"
@@ -541,32 +540,24 @@ void ElekstubeIps::send_pixels_(const uint16_t *pixels, size_t count) {
   this->transmit_(pixels, count * sizeof(uint16_t));
 }
 
-void ElekstubeIps::render_strip_(uint8_t tube, uint8_t mode, uint32_t frame, uint16_t first_row, uint16_t rows) {
+// Tube N shows the digit N + 1, which also reveals a rotated or mirrored panel. The border sits
+// on the outermost pixels and the grid fills the rest, so any framing error shows.
+void ElekstubeIps::render_identify_strip_(uint8_t tube, uint16_t first_row, uint16_t rows) {
+  static constexpr uint16_t GRID_STEP = 15;
+  static constexpr uint16_t ONE_CENTRE_SHIFT = 38;
   uint16_t *pixel = this->strip_;
-  if (mode == MODE_IDENTIFY) {
-    // Tube N shows the digit N + 1, which also reveals a rotated or mirrored panel. The
-    // border sits on the outermost pixels and the grid fills the rest, so any framing error shows.
-    static constexpr uint16_t GRID_STEP = 15;
-    static constexpr uint16_t ONE_CENTRE_SHIFT = 38;
-    const uint16_t grid = to_wire(rgb565(6, 12, 6));
-    const uint16_t x_shift = tube == 0 ? ONE_CENTRE_SHIFT : 0;
-    for (uint16_t y = first_row; y < first_row + rows; y++) {
-      for (uint16_t x = 0; x < WIDTH; x++) {
-        const bool border = x < 2 || x >= WIDTH - 2 || y < 2 || y >= HEIGHT - 2;
-        if (border) {
-          *pixel++ = to_wire(rgb565(31, 0, 0));
-        } else if (digit_pixel_lit(TUBE_DIGITS[tube], x + x_shift, y)) {
-          *pixel++ = 0xFFFF;
-        } else {
-          *pixel++ = (x % GRID_STEP == 0 || y % GRID_STEP == 0) ? grid : 0x0000;
-        }
-      }
-    }
-    return;
-  }
+  const uint16_t grid = to_wire(rgb565(6, 12, 6));
+  const uint16_t x_shift = tube == 0 ? ONE_CENTRE_SHIFT : 0;
   for (uint16_t y = first_row; y < first_row + rows; y++) {
     for (uint16_t x = 0; x < WIDTH; x++) {
-      *pixel++ = to_wire(rgb565((x + frame * 2) >> 2, y + frame, tube * 5));
+      const bool border = x < 2 || x >= WIDTH - 2 || y < 2 || y >= HEIGHT - 2;
+      if (border) {
+        *pixel++ = to_wire(rgb565(31, 0, 0));
+      } else if (digit_pixel_lit(TUBE_DIGITS[tube], x + x_shift, y)) {
+        *pixel++ = 0xFFFF;
+      } else {
+        *pixel++ = (x % GRID_STEP == 0 || y % GRID_STEP == 0) ? grid : 0x0000;
+      }
     }
   }
 }
@@ -664,12 +655,12 @@ void ElekstubeIps::draw_blank_(uint8_t tube_mask) {
   this->select_(0);
 }
 
-void ElekstubeIps::draw_(uint8_t tube_mask, uint8_t pattern_tube, uint8_t mode, uint32_t frame) {
-  this->select_(tube_mask);
+void ElekstubeIps::draw_identify_(uint8_t tube) {
+  this->select_(1 << tube);
   this->set_window_();
   for (uint16_t row = 0; row < HEIGHT; row += STRIP_ROWS) {
     const uint16_t count = HEIGHT - row < STRIP_ROWS ? HEIGHT - row : STRIP_ROWS;
-    this->render_strip_(pattern_tube, mode, frame, row, count);
+    this->render_identify_strip_(tube, row, count);
     this->send_pixels_(this->strip_, WIDTH * count);
   }
   this->select_(0);
@@ -863,6 +854,9 @@ bool ElekstubeIps::draw_clip_frame_() {
     return false;
   }
   const ClipInfo info = this->clips_.info(request.clip_index);
+  if (info.images_per_frame == SCENE_IMAGES) {
+    return this->draw_scene_frame_(info);
+  }
   const auto current_frame = [&]() {
     const uint64_t elapsed = esp_timer_get_time() / 1000 - this->animation_start_ms_;
     return static_cast<uint32_t>(elapsed * info.fps / 1000 % info.frames);
@@ -899,6 +893,103 @@ bool ElekstubeIps::draw_clip_frame_() {
   }
   vTaskDelay(1);
   return drew;
+}
+
+// A patch needs every patch before it, so a scene that falls behind catches up instead of skipping.
+bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
+  const AnimationRequest &request = this->active_request_;
+  const uint64_t elapsed_ms = esp_timer_get_time() / 1000 - this->animation_start_ms_;
+  if (this->scene_frames_drawn_ > elapsed_ms * info.fps / 1000) {
+    vTaskDelay(1);
+    return false;
+  }
+  const int64_t started_us = esp_timer_get_time();
+  const uint32_t frame = this->scene_frames_drawn_ % info.frames;
+  if (frame == 0) {
+    if (this->scene_frames_drawn_ > 0) {
+      ESP_LOGI(TAG, "Scene loop: %u frames in %u ms, slowest frame %u us", static_cast<unsigned>(info.frames),
+               static_cast<unsigned>(elapsed_ms), static_cast<unsigned>(this->scene_slowest_us_));
+    }
+    this->draw_blank_(request.tube_mask);
+  }
+
+  const uint8_t *palette_data;
+  uint32_t palette_size;
+  this->clips_.table_entry(request.clip_index, 0, &palette_data, &palette_size);
+  uint16_t palette[SCENE_PALETTE_BYTES / sizeof(uint16_t)];
+  const uint16_t dim = this->current_dim_();
+  for (size_t index = 0; index < SCENE_PALETTE_BYTES / sizeof(uint16_t); index++) {
+    uint16_t color;
+    memcpy(&color, palette_data + index * sizeof(color), sizeof(color));
+    if (dim >= 256) {
+      palette[index] = to_wire(color);
+    } else {
+      const uint8_t r = (((color >> 11) & 0x1F) * dim) >> 8;
+      const uint8_t g = (((color >> 5) & 0x3F) * dim) >> 8;
+      const uint8_t b = ((color & 0x1F) * dim) >> 8;
+      palette[index] = to_wire(rgb565(r, g, b));
+    }
+  }
+
+  const uint8_t *record;
+  uint32_t record_size;
+  this->clips_.table_entry(request.clip_index, 1 + frame, &record, &record_size);
+  uint16_t count;
+  memcpy(&count, record, sizeof(count));
+  for (uint16_t index = 0; index < count; index++) {
+    ScenePatch patch;
+    memcpy(&patch, record + sizeof(count) + index * sizeof(patch), sizeof(patch));
+    if ((request.tube_mask & (1 << patch.tube)) == 0) {
+      continue;
+    }
+    const uint8_t *blob;
+    uint32_t blob_size;
+    this->clips_.table_entry(request.clip_index, 1 + info.frames + patch.blob, &blob, &blob_size);
+    this->draw_scene_patch_(patch, blob, blob_size, palette);
+  }
+
+  const uint32_t took_us = static_cast<uint32_t>(esp_timer_get_time() - started_us);
+  if (took_us > this->scene_slowest_us_) {
+    this->scene_slowest_us_ = took_us;
+  }
+  this->scene_frames_drawn_++;
+  vTaskDelay(1);
+  return true;
+}
+
+// The pixels are palette indices compressed with RLE: a token below 128 repeats the next byte
+// token + 1 times, and any other token is followed by token - 127 literal bytes.
+void ElekstubeIps::draw_scene_patch_(const ScenePatch &patch, const uint8_t *data, uint32_t size,
+                                     const uint16_t *palette) {
+  this->select_(1 << patch.tube);
+  this->set_window_(patch.x, patch.x + patch.width - 1, patch.y, patch.y + patch.height - 1);
+  uint32_t remaining = static_cast<uint32_t>(patch.width) * patch.height;
+  uint32_t position = 0;
+  size_t filled = 0;
+  while (remaining > 0 && position < size) {
+    const uint8_t token = data[position++];
+    const bool repeat = token < 128;
+    uint32_t count = repeat ? token + 1u : token - 127u;
+    if (count > remaining) {
+      count = remaining;
+    }
+    if (position + (repeat ? 1 : count) > size) {
+      break;
+    }
+    remaining -= count;
+    for (uint32_t index = 0; index < count; index++) {
+      this->strip_[filled++] = palette[repeat ? data[position] : data[position + index]];
+      if (filled == STRIP_PIXELS) {
+        this->send_pixels_(this->strip_, filled);
+        filled = 0;
+      }
+    }
+    position += repeat ? 1 : count;
+  }
+  if (filled > 0) {
+    this->send_pixels_(this->strip_, filled);
+  }
+  this->select_(0);
 }
 
 bool ElekstubeIps::draw_animation_frame_(uint32_t elapsed_ms) {
@@ -979,6 +1070,8 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
     memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
     this->text_drawn_ = false;
     memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
+    this->scene_frames_drawn_ = 0;
+    this->scene_slowest_us_ = 0;
     this->led_color_.store((request.color.r << 16) | (request.color.g << 8) | request.color.b);
     // Replacing an animation that changed the LEDs with one that does not must still give them back.
     this->led_event_.store(request.control_leds ? LED_EVENT_START : LED_EVENT_END);
@@ -1033,7 +1126,6 @@ void ElekstubeIps::task_entry_(void *arg) { static_cast<ElekstubeIps *>(arg)->ta
 void ElekstubeIps::task_loop_() {
   this->init_panels_();
 
-  uint32_t frame = 0;
   uint32_t frames_in_window = 0;
   int64_t window_start = esp_timer_get_time();
   const auto count_frame = [&]() {
@@ -1083,23 +1175,12 @@ void ElekstubeIps::task_loop_() {
       continue;
     }
 
-    if (mode == MODE_BENCH_COMMON) {
-      this->draw_(ALL_TUBES, 0, mode, frame);
-    } else {
-      for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
-        if (mode == MODE_BENCH_JPEG_PHOTO) {
-          this->draw_jpeg_(1 << tube, BENCH_JPEG_PHOTO, sizeof(BENCH_JPEG_PHOTO));
-        } else if (mode == MODE_BENCH_JPEG_GRAPHIC) {
-          this->draw_jpeg_(1 << tube, BENCH_JPEG_GRAPHIC, sizeof(BENCH_JPEG_GRAPHIC));
-        } else {
-          this->draw_(1 << tube, tube, mode, frame);
-        }
-        vTaskDelay(1);
-      }
+    for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
+      this->draw_identify_(tube);
+      vTaskDelay(1);
     }
-    frame++;
     count_frame();
-    vTaskDelay(mode == MODE_IDENTIFY ? pdMS_TO_TICKS(1000) : 1);
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 

@@ -16,7 +16,7 @@ def parse_library(library):
     clips = {}
     for index in range(count):
         position = make_clips.HEADER.size + index * make_clips.CLIP_ENTRY.size
-        name, table, frames, fps, per_frame = make_clips.CLIP_ENTRY.unpack_from(library, position)
+        name, table, frames, fps, per_frame, _ = make_clips.CLIP_ENTRY.unpack_from(library, position)
         images = []
         for image_index in range(frames * per_frame):
             offset, size = make_clips.IMAGE_ENTRY.unpack_from(library, table + image_index * make_clips.IMAGE_ENTRY.size)

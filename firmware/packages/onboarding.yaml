@@ -1,0 +1,15 @@
+# Wi-Fi setup for a clock without credentials: over its own network, or over USB while installing.
+esphome:
+  name_add_mac_suffix: true
+
+wifi:
+  ap: {}
+
+captive_portal:
+
+improv_serial:
+
+# An empty password compiles in the authentication, so one can be set at runtime.
+ota:
+  - platform: esphome
+    password: ""

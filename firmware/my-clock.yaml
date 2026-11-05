@@ -1,0 +1,27 @@
+# A clock with its credentials built in, for development. Needs secrets.yaml, see secrets.example.yaml.
+substitutions:
+  name: elekstube
+  timezone: Europe/Madrid
+
+esphome:
+  name: ${name}
+  friendly_name: EleksTube IPS
+
+packages:
+  board: !include boards/elekstube-ips-gen2.yaml
+  core: !include packages/core.yaml
+  telemetry: !include packages/telemetry.yaml
+  mqtt: !include packages/mqtt.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "EleksTube Setup"
+    password: !secret ap_password
+
+captive_portal:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password

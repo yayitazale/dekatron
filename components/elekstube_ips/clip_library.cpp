@@ -40,13 +40,49 @@ struct __attribute__((packed)) ClipEntry {
   uint32_t frames;
   uint16_t fps;
   uint8_t images_per_frame;
-  uint8_t padding[3];
+  uint8_t padding;
+  uint16_t scene_blobs;
 };
 
 struct __attribute__((packed)) ImageEntry {
   uint32_t offset;
   uint32_t size;
 };
+
+static uint64_t table_length(const ClipEntry &entry) {
+  if (entry.images_per_frame == SCENE_IMAGES) {
+    return 1 + static_cast<uint64_t>(entry.frames) + entry.scene_blobs;
+  }
+  return static_cast<uint64_t>(entry.frames) * entry.images_per_frame;
+}
+
+static bool scene_is_valid(const uint8_t *base, const ClipEntry &entry) {
+  ImageEntry location;
+  memcpy(&location, base + entry.table_offset, sizeof(location));
+  if (location.size != SCENE_PALETTE_BYTES) {
+    return false;
+  }
+  for (uint32_t frame = 0; frame < entry.frames; frame++) {
+    memcpy(&location, base + entry.table_offset + (1 + frame) * sizeof(ImageEntry), sizeof(location));
+    uint16_t count;
+    if (location.size < sizeof(count)) {
+      return false;
+    }
+    memcpy(&count, base + location.offset, sizeof(count));
+    if (location.size != sizeof(count) + count * sizeof(ScenePatch)) {
+      return false;
+    }
+    for (uint16_t index = 0; index < count; index++) {
+      ScenePatch patch;
+      memcpy(&patch, base + location.offset + sizeof(count) + index * sizeof(ScenePatch), sizeof(patch));
+      if (patch.tube >= 6 || patch.width == 0 || patch.height == 0 || patch.x + patch.width > 135 ||
+          patch.y + patch.height > 240 || patch.blob >= entry.scene_blobs) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 static bool header_is_valid(const LibraryHeader &header) {
   return memcmp(header.magic, MAGIC, sizeof(MAGIC)) == 0 && header.version == VERSION &&
@@ -82,9 +118,10 @@ void ClipLibrary::load() {
   for (uint32_t index = 0; index < header.clip_count; index++) {
     ClipEntry entry;
     memcpy(&entry, base + sizeof(LibraryHeader) + index * sizeof(ClipEntry), sizeof(entry));
-    const uint64_t images = static_cast<uint64_t>(entry.frames) * entry.images_per_frame;
+    const uint64_t images = table_length(entry);
     const uint64_t table_end = entry.table_offset + images * sizeof(ImageEntry);
-    if (entry.fps == 0 || entry.frames == 0 || (entry.images_per_frame != 1 && entry.images_per_frame != 6) ||
+    if (entry.fps == 0 || entry.frames == 0 ||
+        (entry.images_per_frame != 1 && entry.images_per_frame != 6 && entry.images_per_frame != SCENE_IMAGES) ||
         table_end > header.total_size) {
       ESP_LOGW(TAG, "Clip library is malformed");
       return;
@@ -96,6 +133,10 @@ void ClipLibrary::load() {
         ESP_LOGW(TAG, "Clip library is malformed");
         return;
       }
+    }
+    if (entry.images_per_frame == SCENE_IMAGES && !scene_is_valid(base, entry)) {
+      ESP_LOGW(TAG, "Clip library is malformed");
+      return;
     }
   }
   this->base_ = base;
@@ -123,14 +164,18 @@ bool ClipLibrary::find(const char *name, uint8_t *index) const {
 ClipInfo ClipLibrary::info(uint8_t index) const {
   ClipEntry entry;
   memcpy(&entry, this->base_ + sizeof(LibraryHeader) + index * sizeof(ClipEntry), sizeof(entry));
-  return {entry.frames, entry.fps, entry.images_per_frame};
+  return {entry.frames, entry.fps, entry.images_per_frame, entry.scene_blobs};
 }
 
 void ClipLibrary::image(uint8_t index, uint32_t frame, uint8_t image, const uint8_t **data, uint32_t *size) const {
+  const ClipInfo clip = this->info(index);
+  this->table_entry(index, frame * clip.images_per_frame + image, data, size);
+}
+
+void ClipLibrary::table_entry(uint8_t index, uint32_t position, const uint8_t **data, uint32_t *size) const {
   ClipEntry entry;
   memcpy(&entry, this->base_ + sizeof(LibraryHeader) + index * sizeof(ClipEntry), sizeof(entry));
   ImageEntry location;
-  const uint32_t position = frame * entry.images_per_frame + image;
   memcpy(&location, this->base_ + entry.table_offset + position * sizeof(ImageEntry), sizeof(location));
   *data = this->base_ + location.offset;
   *size = location.size;

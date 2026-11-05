@@ -1,0 +1,51 @@
+# State and health readings, for profiles with something to report them to.
+text_sensor:
+  - platform: template
+    name: Animation State
+    icon: mdi:animation
+    update_interval: 1s
+    lambda: return id(tubes).animation_state();
+  - platform: template
+    name: Clip Library
+    icon: mdi:movie-open
+    update_interval: 2s
+    lambda: return id(tubes).clip_library_state();
+  - platform: template
+    name: RTC Time at Boot
+    icon: mdi:clock-check-outline
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(rtc_boot_time);
+
+sensor:
+  - platform: template
+    name: Frames Per Second
+    icon: mdi:speedometer
+    unit_of_measurement: fps
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: return id(tubes).fps();
+  - platform: template
+    name: Free RAM
+    icon: mdi:memory
+    unit_of_measurement: B
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 30s
+    lambda: return id(tubes).free_heap();
+  - platform: template
+    name: Largest RAM Block
+    icon: mdi:memory
+    unit_of_measurement: B
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 30s
+    lambda: return id(tubes).largest_heap_block();
+  - platform: wifi_signal
+    name: WiFi Signal
+    entity_category: diagnostic
+    update_interval: 60s
+  - platform: uptime
+    name: Uptime
+    entity_category: diagnostic
+    update_interval: 60s

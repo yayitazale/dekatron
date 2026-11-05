@@ -30,7 +30,8 @@ Topic prefix: `elekstube/elekstube/animation`.
 |---|---|---|
 | `play` | to the clock | JSON request, see below |
 | `stop` | to the clock | anything |
-| `state` | from the clock | `clock`, `test` or `matrix 3/10 s` |
+
+The state is published to `elekstube/elekstube/text_sensor/animation_state/state` as `clock`, `test` or `matrix 3/10 s`.
 
 ```json
 {"type": "effect", "name": "matrix", "duration": 10, "color": "#00ff46", "tubes": "all", "priority": 2}
@@ -79,7 +80,7 @@ python tools/make_clips.py clips.bin --clip alarm=alarm.gif --clip wave=wave.gif
 {"url": "http://homeassistant.local:8123/local/clips.bin"}
 ```
 
-Publish to `elekstube/elekstube/clips/download` and follow `elekstube/elekstube/clips/state`, also shown as the Clip Library sensor.
+Publish to `elekstube/elekstube/clips/download` and follow `elekstube/elekstube/text_sensor/clip_library/state`, also shown as the Clip Library sensor.
 
 - A file in `/config/www` is served at `/local/`. Only plain HTTP is supported.
 - A download replaces the whole library. A wrong URL or a file that is not a library keeps the current one, but a download that fails after it starts leaves the library empty until the next one succeeds.

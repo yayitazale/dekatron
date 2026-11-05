@@ -22,10 +22,6 @@ namespace elekstube_ips {
 enum DisplayMode : uint8_t {
   MODE_CLOCK = 0,
   MODE_IDENTIFY = 1,
-  MODE_BENCH_SIX = 2,
-  MODE_BENCH_COMMON = 3,
-  MODE_BENCH_JPEG_PHOTO = 4,
-  MODE_BENCH_JPEG_GRAPHIC = 5,
 };
 
 class ElekstubeIps : public Component {
@@ -84,7 +80,9 @@ class ElekstubeIps : public Component {
   void draw_text_tube_(uint8_t tube, const uint8_t *glyphs, size_t count, int32_t text_left);
   bool draw_text_frame_(uint32_t elapsed_ms);
   bool draw_clip_frame_();
-  void draw_(uint8_t tube_mask, uint8_t pattern_tube, uint8_t mode, uint32_t frame);
+  bool draw_scene_frame_(const ClipInfo &info);
+  void draw_scene_patch_(const ScenePatch &patch, const uint8_t *data, uint32_t size, const uint16_t *palette);
+  void draw_identify_(uint8_t tube);
   void draw_blank_(uint8_t tube_mask);
   void draw_jpeg_(uint8_t tube_mask, const uint8_t *jpeg, size_t size, uint8_t level_percent = 100);
   void draw_digit_(uint8_t tube, uint8_t digit, bool fade);
@@ -95,7 +93,7 @@ class ElekstubeIps : public Component {
   bool submit_(const AnimationRequest &request);
   void apply_led_event_();
   void update_led_pulse_();
-  void render_strip_(uint8_t tube, uint8_t mode, uint32_t frame, uint16_t first_row, uint16_t rows);
+  void render_identify_strip_(uint8_t tube, uint16_t first_row, uint16_t rows);
   static unsigned int jpeg_input_(void *decoder, uint8_t *buffer, unsigned int bytes);
   static unsigned int jpeg_output_(void *decoder, void *bitmap, void *rect);
 
@@ -153,6 +151,8 @@ class ElekstubeIps : public Component {
   bool text_drawn_{false};
   bool text_tube_blank_[6]{};
   uint32_t clip_shown_frames_[6]{};
+  uint32_t scene_frames_drawn_{0};
+  uint32_t scene_slowest_us_{0};
   uint8_t applied_brightness_{100};
   bool panels_powered_{true};
 

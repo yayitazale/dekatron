@@ -1,0 +1,15 @@
+# The clock with Home Assistant and the ESPHome dashboard.
+substitutions:
+  name: elekstube
+  timezone: Europe/Madrid
+
+esphome:
+  name: ${name}
+  friendly_name: EleksTube IPS
+
+packages:
+  board: !include boards/elekstube-ips-gen2.yaml
+  core: !include packages/core.yaml
+  onboarding: !include packages/onboarding.yaml
+  telemetry: !include packages/telemetry.yaml
+  ha_api: !include packages/ha-api.yaml

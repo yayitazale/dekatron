@@ -1,0 +1,4 @@
+# Native ESPHome API, used by Home Assistant and the ESPHome dashboard. Without a key here, the
+# clock gets one the first time it is set up from Home Assistant.
+api:
+  encryption:

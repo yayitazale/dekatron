@@ -17,6 +17,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageSequence
@@ -29,13 +30,22 @@ MAGIC = b"EKCL"
 VERSION = 1
 NAME_BYTES = 16
 HEADER = struct.Struct("<4sIIII")  # magic, version, total size, CRC32 of the rest, clip count
-CLIP_ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHB3x")  # name, table offset, frames, fps, images per frame
+CLIP_ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHBxH")  # name, table offset, frames, fps, images per frame, scene blobs
 IMAGE_ENTRY = struct.Struct("<II")  # offset, size
 
 # Must match TUBE_GAP_PIXELS in animation.h.
 TUBE_PITCH = WIDTH + 112
 TUBE_COUNT = 6
 CANVAS_WIDTH = (TUBE_COUNT - 1) * TUBE_PITCH + WIDTH
+
+
+@dataclass
+class Scene:
+    """Encoded by tools/make_scenes.py: only what changes between frames."""
+
+    palette: bytes
+    records: list
+    blobs: list
 
 
 def read_frames(path, fps):
@@ -118,6 +128,12 @@ def build_library(clips):
         encoded_name = name.encode("utf-8")
         if not 1 <= len(encoded_name) < NAME_BYTES:
             raise ValueError(f"Invalid clip name: {name!r}")
+        if isinstance(frames, Scene):
+            if not frames.records or not 1 <= fps <= 60 or len(frames.palette) != 512 or len(frames.blobs) > 0xFFFF:
+                raise ValueError(f"{name}: invalid scene")
+            tables.append(position)
+            position += (1 + len(frames.records) + len(frames.blobs)) * IMAGE_ENTRY.size
+            continue
         if not frames or not 1 <= fps <= 60:
             raise ValueError(f"{name}: invalid frames or fps")
         images_per_frame = len(frames[0])
@@ -130,14 +146,24 @@ def build_library(clips):
     offsets = {}
     entries = []
     table_bytes = bytearray()
+
+    def add_image(image):
+        nonlocal table_bytes
+        if image not in offsets:
+            offsets[image] = position + len(payload)
+            payload.extend(image)
+        table_bytes += IMAGE_ENTRY.pack(offsets[image], len(image))
+
     for (name, fps, frames), table in zip(clips, tables):
+        if isinstance(frames, Scene):
+            for image in (frames.palette, *frames.records, *frames.blobs):
+                add_image(image)
+            entries.append(CLIP_ENTRY.pack(name.encode("utf-8"), table, len(frames.records), fps, 0, len(frames.blobs)))
+            continue
         for frame in frames:
             for image in frame:
-                if image not in offsets:
-                    offsets[image] = position + len(payload)
-                    payload += image
-                table_bytes += IMAGE_ENTRY.pack(offsets[image], len(image))
-        entries.append(CLIP_ENTRY.pack(name.encode("utf-8"), table, len(frames), fps, len(frames[0])))
+                add_image(image)
+        entries.append(CLIP_ENTRY.pack(name.encode("utf-8"), table, len(frames), fps, len(frames[0]), 0))
 
     body = b"".join(entries) + bytes(table_bytes) + bytes(payload)
     total = HEADER.size + len(body)

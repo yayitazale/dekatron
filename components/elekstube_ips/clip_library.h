@@ -16,7 +16,23 @@ static constexpr uint32_t FACE_REGION_BYTES = 0x40000;
 struct ClipInfo {
   uint32_t frames;
   uint16_t fps;
-  uint8_t images_per_frame;
+  uint8_t images_per_frame;  // SCENE_IMAGES for a scene
+  uint16_t scene_blobs;
+};
+
+// A scene stores what changes between frames instead of whole images, see tools/make_scenes.py.
+// Its table holds the palette, then one record per frame, then the pixel blobs.
+static constexpr uint8_t SCENE_IMAGES = 0;
+static constexpr uint32_t SCENE_PALETTE_BYTES = 512;
+
+struct __attribute__((packed)) ScenePatch {
+  uint8_t tube;
+  uint8_t x;
+  uint8_t y;
+  uint8_t width;
+  uint8_t height;
+  uint8_t padding;
+  uint16_t blob;
 };
 
 // Clips stored in flash in the format written by tools/make_clips.py. The header goes last when
@@ -33,6 +49,7 @@ class ClipLibrary {
   bool find(const char *name, uint8_t *index) const;
   ClipInfo info(uint8_t index) const;
   void image(uint8_t index, uint32_t frame, uint8_t image, const uint8_t **data, uint32_t *size) const;
+  void table_entry(uint8_t index, uint32_t position, const uint8_t **data, uint32_t *size) const;
 
   // Replaces the library in the background. Returns false if a download is already running.
   bool start_download(const char *url);

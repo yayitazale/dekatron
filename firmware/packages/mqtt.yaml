@@ -1,0 +1,21 @@
+# Optional control over MQTT, with Home Assistant discovery. The API is described in ha/README.md.
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: elekstube/${name}
+  discovery: true
+  on_json_message:
+    - topic: elekstube/${name}/animation/play
+      then:
+        - lambda: |-
+            id(tubes).play_request(x["type"] | "effect", x["name"] | "", x["tubes"] | "all", x["duration"] | 10,
+                                   x["priority"] | 2, x["color"] | "", x["text"] | "", x["scroll"] | false,
+                                   x["loop"] | 0);
+    - topic: elekstube/${name}/clips/download
+      then:
+        - lambda: id(tubes).download_clips(x["url"] | "");
+  on_message:
+    topic: elekstube/${name}/animation/stop
+    then:
+      - lambda: id(tubes).stop_animation();

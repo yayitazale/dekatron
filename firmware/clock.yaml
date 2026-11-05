@@ -1,0 +1,13 @@
+# Just the clock: Wi-Fi setup and network time, with nothing else to connect to.
+substitutions:
+  name: elekstube
+  timezone: Europe/Madrid
+
+esphome:
+  name: ${name}
+  friendly_name: EleksTube IPS
+
+packages:
+  board: !include boards/elekstube-ips-gen2.yaml
+  core: !include packages/core.yaml
+  onboarding: !include packages/onboarding.yaml
