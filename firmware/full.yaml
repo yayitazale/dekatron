@@ -13,3 +13,4 @@ packages:
   onboarding: !include packages/onboarding.yaml
   telemetry: !include packages/telemetry.yaml
   ha_api: !include packages/ha-api.yaml
+  web: !include packages/web.yaml

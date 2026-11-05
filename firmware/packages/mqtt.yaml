@@ -12,9 +12,9 @@ mqtt:
             id(tubes).play_request(x["type"] | "effect", x["name"] | "", x["tubes"] | "all", x["duration"] | 10,
                                    x["priority"] | 2, x["color"] | "", x["text"] | "", x["scroll"] | false,
                                    x["loop"] | 0);
-    - topic: elekstube/${name}/clips/download
+    - topic: elekstube/${name}/store/download
       then:
-        - lambda: id(tubes).download_clips(x["url"] | "");
+        - lambda: id(tubes).download_store(x["url"] | "");
   on_message:
     topic: elekstube/${name}/animation/stop
     then:

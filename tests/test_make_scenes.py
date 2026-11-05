@@ -86,7 +86,7 @@ class EncodeSceneTest(unittest.TestCase):
         scene = make_scenes.encode_scene([canvas_with_box(20)])
         library = make_clips.build_library([("scene", 15, scene), ("plain", 15, [[b"a"]])])
         position = make_clips.HEADER.size
-        _, _, frames, _, per_frame, blobs = make_clips.CLIP_ENTRY.unpack_from(library, position)
+        _, _, frames, _, per_frame, _, blobs, _ = make_clips.ENTRY.unpack_from(library, position)
         self.assertEqual((frames, per_frame, blobs), (1, 0, len(scene.blobs)))
 
 

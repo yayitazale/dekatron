@@ -1,9 +1,9 @@
-"""Draw the default scenes and pack them as a clip library.
+"""Draw the default scenes and pack them as a store.
 
 A scene is a sequence of canvases that cross the tubes. Like a GIF, it stores only the rectangles
 that change between frames, so a small moving shape stays fast however far it travels.
 
-Usage: python tools/make_scenes.py clips.bin [--preview folder]
+Usage: python tools/make_scenes.py store.bin [--preview folder]
 """
 
 import argparse

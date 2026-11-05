@@ -5,16 +5,19 @@
 #include <cstdint>
 
 #include <string>
+#include <vector>
 
 #include <driver/spi_master.h>
 #include <freertos/FreeRTOS.h>
 
 #include "animation.h"
-#include "clip_library.h"
+#include "store.h"
 #include "esphome/components/light/light_state.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
 #include "faces_builtin.h"
+#include "settings.h"
 
 namespace esphome {
 namespace elekstube_ips {
@@ -39,12 +42,26 @@ class ElekstubeIps : public Component {
   void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
   void set_time(time::RealTimeClock *clock) { this->clock_ = clock; }
   void set_leds(light::LightState *leds) { this->leds_ = leds; }
+  void set_face_select(select::Select *face_select) { this->face_select_ = face_select; }
 
   // Returns false when the request is invalid or a more urgent animation is running.
   bool play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
                     const char *color, const char *text, bool scroll, int loops);
-  bool download_clips(const char *url);
-  std::string clip_library_state() const { return this->clips_.state(); }
+  bool download_store(const char *url);
+  std::string store_state() const { return this->store_.state(); }
+  Store &store() { return this->store_; }
+  Settings &settings() { return this->settings_; }
+  // Draws the clock again, for when what it shows may have changed under it.
+  // Also brings the list of faces of the selector up to date. Safe to call from any task.
+  void refresh();
+  // Changes the face as the selector would, which also keeps the selector and its saved value in step.
+  bool select_face(uint8_t face);
+  void set_boot_animation(bool enabled) { this->boot_animation_.store(enabled); }
+
+  // The faces are the built-in ones, then those of the store.
+  uint8_t face_count() const;
+  void face_name(uint8_t face, char *buffer) const;  // buffer holds at least Store::NAME_BYTES + 1 characters
+  uint8_t current_face() const { return this->face_.load(); }
   void play_effect(size_t index, float duration_s);
   void stop_animation() { this->stop_requested_.store(true); }
   std::string animation_state() const;
@@ -68,6 +85,7 @@ class ElekstubeIps : public Component {
   void set_night_brightness(float percent) { this->night_brightness_.store(static_cast<uint8_t>(percent)); }
 
   float fps() const { return this->fps_.load(); }
+  uint32_t frames_total() const { return this->frames_total_.load(); }
   float free_heap() const;
   float largest_heap_block() const;
 
@@ -76,7 +94,8 @@ class ElekstubeIps : public Component {
   void task_loop_();
 
   bool init_bus_();
-  void load_face_pack_();
+  void load_store_();
+  void refresh_faces_();
   void init_panels_();
   void select_(uint8_t tube_mask);
   void transmit_(const void *buffer, size_t bytes);
@@ -123,9 +142,8 @@ class ElekstubeIps : public Component {
   spi_device_handle_t device_{nullptr};
   uint16_t *strip_{nullptr};
   uint8_t *jpeg_pool_{nullptr};
-  const uint8_t *face_pack_{nullptr};
-  uint32_t face_pack_sets_{0};
-  ClipLibrary clips_;
+  Store store_;
+  Settings settings_;
   uint16_t x_offset_{52};
   uint16_t y_offset_{40};
   uint8_t madctl_{0x08};
@@ -145,12 +163,15 @@ class ElekstubeIps : public Component {
   std::atomic<bool> redraw_{true};
   std::atomic<bool> stop_requested_{false};
   std::atomic<bool> skip_startup_requested_{false};
+  std::atomic<bool> boot_animation_{true};
+  bool timezone_applied_{false};
   std::atomic<bool> wifi_connected_{false};
   std::atomic<bool> wifi_configured_{false};
   std::atomic<bool> setup_client_joined_{false};
   std::string setup_url_;  // written before setup_client_joined_ becomes true
   uint32_t last_setup_client_check_ms_{0};
   std::atomic<float> fps_{0.0f};
+  std::atomic<uint32_t> frames_total_{0};
   portMUX_TYPE request_lock_ = portMUX_INITIALIZER_UNLOCKED;
   AnimationRequest pending_request_;  // guarded by request_lock_
   bool has_pending_request_{false};   // guarded by request_lock_
@@ -186,6 +207,8 @@ class ElekstubeIps : public Component {
 
   // Owned by the main loop.
   light::LightState *leds_{nullptr};
+  select::Select *face_select_{nullptr};
+  std::vector<std::string> face_names_;  // the options of the selector point into these
   uint32_t last_led_pulse_ms_{0};
   bool leds_saved_{false};
   bool saved_leds_on_{false};

@@ -6,10 +6,10 @@ text_sensor:
     update_interval: 1s
     lambda: return id(tubes).animation_state();
   - platform: template
-    name: Clip Library
-    icon: mdi:movie-open
+    name: Store
+    icon: mdi:database
     update_interval: 2s
-    lambda: return id(tubes).clip_library_state();
+    lambda: return id(tubes).store_state();
   - platform: template
     name: RTC Time at Boot
     icon: mdi:clock-check-outline

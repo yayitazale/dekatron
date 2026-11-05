@@ -75,21 +75,8 @@ static constexpr uint8_t LED_EVENT_NONE = 0;
 static constexpr uint8_t LED_EVENT_START = 1;
 static constexpr uint8_t LED_EVENT_END = 2;
 
-// Partition layout written by tools/convert.py.
-static constexpr esp_partition_subtype_t FACE_PARTITION_SUBTYPE = static_cast<esp_partition_subtype_t>(0x40);
-static const char FACE_PACK_MAGIC[4] = {'E', 'K', 'F', 'P'};
-static constexpr uint32_t FACE_PACK_MAX_SETS = 8;
-
-struct FacePackHeader {
-  char magic[4];
-  uint32_t set_count;
-};
-
-struct FacePackSet {
-  char name[16];
-  uint32_t offsets[DIGIT_COUNT];
-  uint32_t sizes[DIGIT_COUNT];
-};
+// The data partition holds the store, see tools/make_clips.py.
+static constexpr esp_partition_subtype_t STORE_PARTITION_SUBTYPE = static_cast<esp_partition_subtype_t>(0x40);
 
 static constexpr uint8_t CMD_NOP = 0x00;
 static constexpr uint8_t CMD_SWRESET = 0x01;
@@ -195,11 +182,13 @@ void ElekstubeIps::set_hour_24(bool hour_24) { this->hour_24_.store(hour_24); }
 void ElekstubeIps::set_leading_zero(bool leading_zero) { this->leading_zero_.store(leading_zero); }
 
 void ElekstubeIps::setup() {
+  this->settings_.load();
+  this->boot_animation_.store(this->settings_.data().boot_animation != 0);
   if (!this->init_bus_()) {
     this->mark_failed();
     return;
   }
-  this->load_face_pack_();
+  this->load_store_();
   // Runs on the main loop's core: WiFi stays on the other one.
   if (xTaskCreatePinnedToCore(task_entry_, "tubes", 8192, this, 1, nullptr, 1) != pdPASS) {
     ESP_LOGE(TAG, "Could not start the drawing task");
@@ -208,6 +197,12 @@ void ElekstubeIps::setup() {
 }
 
 void ElekstubeIps::loop() {
+  if (!this->timezone_applied_) {
+    // The time component sets its own timezone while starting, so this has to come after it.
+    this->timezone_applied_ = true;
+    this->settings_.apply_timezone();
+    this->refresh_faces_();
+  }
   this->wifi_connected_.store(wifi::global_wifi_component->is_connected());
   this->wifi_configured_.store(wifi::global_wifi_component->has_sta());
   this->update_setup_client_();
@@ -240,6 +235,7 @@ void ElekstubeIps::update_setup_client_() {
     return;
   }
   this->last_setup_client_check_ms_ = now_ms;
+#ifdef USE_WIFI_AP
   wifi_sta_list_t clients{};
   const bool joined = esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0;
   if (joined && this->setup_url_.empty()) {
@@ -247,6 +243,7 @@ void ElekstubeIps::update_setup_client_() {
     this->setup_url_ = std::string("http://") + wifi::global_wifi_component->wifi_soft_ap_ip().str_to(address);
   }
   this->setup_client_joined_.store(joined);
+#endif
 }
 
 void ElekstubeIps::toggle_countdown(int duration_s) {
@@ -275,12 +272,12 @@ bool ElekstubeIps::skip_startup() {
   return true;
 }
 
-bool ElekstubeIps::download_clips(const char *url) {
+bool ElekstubeIps::download_store(const char *url) {
   if (url[0] == '\0') {
-    ESP_LOGW(TAG, "Clip download without a URL");
+    ESP_LOGW(TAG, "Store download without a URL");
     return false;
   }
-  return this->clips_.start_download(url);
+  return this->store_.start_download(url);
 }
 
 bool ElekstubeIps::play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
@@ -304,7 +301,7 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
     request.control_leds = color[0] != '\0';
   } else if (strcmp(type, "clip") == 0) {
     request.effect = Effect::CLIP;
-    if (!this->clips_.find(name, &request.clip_index)) {
+    if (!this->store_.find(name, EntryKind::CLIP, &request.clip_index)) {
       ESP_LOGW(TAG, "Unknown clip: %s", name);
       return false;
     }
@@ -333,7 +330,7 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
   request.duration_ms = static_cast<uint32_t>(duration_s) * 1000;
   request.priority = static_cast<uint8_t>(priority);
   if (request.effect == Effect::CLIP && loops > 0) {
-    const ClipInfo info = this->clips_.info(request.clip_index);
+    const ClipInfo info = this->store_.info(request.clip_index);
     const uint64_t total_ms = static_cast<uint64_t>(info.frames) * 1000 * loops / info.fps;
     if (total_ms > MAX_DURATION_MS) {
       ESP_LOGW(TAG, "Clip loops exceed the maximum duration: %d", loops);
@@ -427,8 +424,9 @@ void ElekstubeIps::apply_led_event_() {
 }
 
 void ElekstubeIps::dump_config() {
-  ESP_LOGCONFIG(TAG, "EleksTube IPS: %ux%u, offset %u,%u, MADCTL 0x%02X, face pack sets: %u", WIDTH, HEIGHT,
-                this->x_offset_, this->y_offset_, this->madctl_, static_cast<unsigned>(this->face_pack_sets_));
+  ESP_LOGCONFIG(TAG, "EleksTube IPS: %ux%u, offset %u,%u, MADCTL 0x%02X, store faces: %u", WIDTH, HEIGHT,
+                this->x_offset_, this->y_offset_, this->madctl_,
+                static_cast<unsigned>(this->store_.count(EntryKind::FACE)));
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setup failed");
   }
@@ -486,61 +484,98 @@ bool ElekstubeIps::init_bus_() {
   return true;
 }
 
-// A missing or invalid pack is normal: the built-in faces are used instead.
-void ElekstubeIps::load_face_pack_() {
+// A missing or invalid store is normal: the built-in faces are used instead.
+void ElekstubeIps::load_store_() {
   const esp_partition_t *partition =
-      esp_partition_find_first(ESP_PARTITION_TYPE_DATA, FACE_PARTITION_SUBTYPE, nullptr);
+      esp_partition_find_first(ESP_PARTITION_TYPE_DATA, STORE_PARTITION_SUBTYPE, nullptr);
   if (partition == nullptr) {
-    ESP_LOGW(TAG, "Face partition not found");
+    ESP_LOGW(TAG, "Store partition not found");
     return;
   }
   const void *mapped = nullptr;
   esp_partition_mmap_handle_t handle;
   const esp_err_t err = esp_partition_mmap(partition, 0, partition->size, ESP_PARTITION_MMAP_DATA, &mapped, &handle);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Could not map the face partition: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "Could not map the store partition: %s", esp_err_to_name(err));
     return;
   }
+  // The mapping stays for the life of the program.
+  this->store_.attach(partition, static_cast<const uint8_t *>(mapped));
+  this->store_.load();
+}
 
-  const auto *base = static_cast<const uint8_t *>(mapped);
-  // The mapping stays for the life of the program: the clip library reads from it too.
-  this->clips_.attach(partition, base);
-  this->clips_.load();
+static const char *const BUILTIN_FACE_NAMES[BUILTIN_FACE_COUNT] = {"Nixie", "Ice"};
 
-  FacePackHeader header;
-  memcpy(&header, base, sizeof(header));
-  if (memcmp(header.magic, FACE_PACK_MAGIC, sizeof(header.magic)) != 0 || header.set_count == 0 ||
-      header.set_count > FACE_PACK_MAX_SETS) {
-    ESP_LOGI(TAG, "No face pack in the partition");
-    return;
+void ElekstubeIps::refresh() {
+  this->redraw_.store(true);
+  this->defer([this]() { this->refresh_faces_(); });
+}
+
+bool ElekstubeIps::select_face(uint8_t face) {
+  if (face >= this->face_count()) {
+    return false;
   }
-
-  for (uint32_t index = 0; index < header.set_count; index++) {
-    FacePackSet set;
-    memcpy(&set, base + sizeof(FacePackHeader) + index * sizeof(FacePackSet), sizeof(set));
-    for (uint8_t digit = 0; digit < DIGIT_COUNT; digit++) {
-      if (set.offsets[digit] > FACE_REGION_BYTES || set.sizes[digit] > FACE_REGION_BYTES - set.offsets[digit]) {
-        ESP_LOGW(TAG, "Face pack is damaged, ignoring it");
-        return;
-      }
+  this->defer([this, face]() {
+    if (this->face_select_ == nullptr) {
+      this->set_face(face);
+      return;
     }
+    auto call = this->face_select_->make_call();
+    call.set_index(face);
+    call.perform();
+  });
+  return true;
+}
+
+// The selector offers the faces that the clock has, as the store changes. Home Assistant reads the
+// options when it connects, so it may show the old ones until then.
+void ElekstubeIps::refresh_faces_() {
+  if (this->face_select_ == nullptr) {
+    return;
   }
-  this->face_pack_ = base;
-  this->face_pack_sets_ = header.set_count;
-  ESP_LOGI(TAG, "Face pack loaded with %u sets", static_cast<unsigned>(header.set_count));
+  const uint8_t count = this->face_count();
+  this->face_names_.clear();
+  this->face_names_.reserve(count);
+  char name[Store::NAME_BYTES + 1];
+  for (uint8_t face = 0; face < count; face++) {
+    this->face_name(face, name);
+    this->face_names_.emplace_back(name);
+  }
+  FixedVector<const char *> options;
+  options.init(count);
+  for (const auto &face_name : this->face_names_) {
+    options.push_back(face_name.c_str());
+  }
+  this->face_select_->traits.set_options(options);
+  const uint8_t current = this->face_.load() < count ? this->face_.load() : 0;
+  this->face_select_->publish_state(static_cast<size_t>(current));
+}
+
+uint8_t ElekstubeIps::face_count() const { return BUILTIN_FACE_COUNT + this->store_.count(EntryKind::FACE); }
+
+void ElekstubeIps::face_name(uint8_t face, char *buffer) const {
+  uint8_t entry;
+  if (face < BUILTIN_FACE_COUNT) {
+    snprintf(buffer, Store::NAME_BYTES + 1, "%s", BUILTIN_FACE_NAMES[face]);
+  } else if (this->store_.nth(EntryKind::FACE, face - BUILTIN_FACE_COUNT, &entry)) {
+    this->store_.name(entry, buffer);
+  } else {
+    buffer[0] = '\0';
+  }
 }
 
 FaceImage ElekstubeIps::face_image_(uint8_t face, uint8_t digit) const {
   if (face < BUILTIN_FACE_COUNT) {
     return BUILTIN_FACES[face][digit];
   }
-  const uint32_t set_index = face - BUILTIN_FACE_COUNT;
-  if (this->face_pack_ == nullptr || set_index >= this->face_pack_sets_) {
+  // The store can be replaced while this runs, so a face that has gone falls back to the first one.
+  uint8_t entry;
+  if (!this->store_.nth(EntryKind::FACE, face - BUILTIN_FACE_COUNT, &entry)) {
     return BUILTIN_FACES[0][digit];
   }
-  FacePackSet set;
-  memcpy(&set, this->face_pack_ + sizeof(FacePackHeader) + set_index * sizeof(FacePackSet), sizeof(set));
-  return {this->face_pack_ + set.offsets[digit], set.sizes[digit]};
+  FaceImage image;
+  this->store_.table_entry(entry, digit, &image.data, &image.size);
+  return image;
 }
 
 void ElekstubeIps::init_panels_() {
@@ -916,13 +951,13 @@ bool ElekstubeIps::draw_text_frame_(uint32_t elapsed_ms) {
 
 bool ElekstubeIps::draw_clip_frame_() {
   const AnimationRequest &request = this->active_request_;
-  if (!this->clips_.ready()) {
+  if (!this->store_.ready()) {
     // A download is replacing the library.
     this->stop_requested_.store(true);
     vTaskDelay(1);
     return false;
   }
-  const ClipInfo info = this->clips_.info(request.clip_index);
+  const ClipInfo info = this->store_.info(request.clip_index);
   if (info.images_per_frame == SCENE_IMAGES) {
     return this->draw_scene_frame_(info);
   }
@@ -937,7 +972,7 @@ bool ElekstubeIps::draw_clip_frame_() {
     if (frame != this->clip_shown_frames_[0]) {
       const uint8_t *data;
       uint32_t size;
-      this->clips_.image(request.clip_index, frame, 0, &data, &size);
+      this->store_.image(request.clip_index, frame, 0, &data, &size);
       this->draw_jpeg_(request.tube_mask, data, size);
       this->clip_shown_frames_[0] = frame;
       drew = true;
@@ -952,7 +987,7 @@ bool ElekstubeIps::draw_clip_frame_() {
         const uint8_t *data;
         uint32_t size;
         // Images are stored left to right, and tube 5 is the leftmost one.
-        this->clips_.image(request.clip_index, frame, TUBE_COUNT - 1 - tube, &data, &size);
+        this->store_.image(request.clip_index, frame, TUBE_COUNT - 1 - tube, &data, &size);
         this->draw_jpeg_(1 << tube, data, size);
         this->clip_shown_frames_[tube] = frame;
         drew = true;
@@ -988,7 +1023,7 @@ bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
 
   const uint8_t *palette_data;
   uint32_t palette_size;
-  this->clips_.table_entry(request.clip_index, 0, &palette_data, &palette_size);
+  this->store_.table_entry(request.clip_index, 0, &palette_data, &palette_size);
   uint16_t palette[SCENE_PALETTE_BYTES / sizeof(uint16_t)];
   const uint16_t dim = this->current_dim_();
   for (size_t index = 0; index < SCENE_PALETTE_BYTES / sizeof(uint16_t); index++) {
@@ -1006,7 +1041,7 @@ bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
 
   const uint8_t *record;
   uint32_t record_size;
-  this->clips_.table_entry(request.clip_index, 1 + frame, &record, &record_size);
+  this->store_.table_entry(request.clip_index, 1 + frame, &record, &record_size);
   uint16_t count;
   memcpy(&count, record, sizeof(count));
   for (uint16_t index = 0; index < count; index++) {
@@ -1017,7 +1052,7 @@ bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
     }
     const uint8_t *blob;
     uint32_t blob_size;
-    this->clips_.table_entry(request.clip_index, 1 + info.frames + patch.blob, &blob, &blob_size);
+    this->store_.table_entry(request.clip_index, 1 + info.frames + patch.blob, &blob, &blob_size);
     this->draw_scene_patch_(patch, blob, blob_size, palette);
   }
 
@@ -1187,10 +1222,10 @@ void ElekstubeIps::begin_animation_(int64_t now_ms) {
 bool ElekstubeIps::start_clip_(const char *name, uint32_t duration_ms, int64_t now_ms) {
   AnimationRequest request;
   request.effect = Effect::CLIP;
-  if (!this->clips_.find(name, &request.clip_index)) {
+  if (!this->store_.find(name, EntryKind::CLIP, &request.clip_index)) {
     return false;
   }
-  const ClipInfo info = this->clips_.info(request.clip_index);
+  const ClipInfo info = this->store_.info(request.clip_index);
   request.control_leds = false;
   request.duration_ms = duration_ms != 0 ? duration_ms : info.frames * 1000 / info.fps;
   this->active_request_ = request;
@@ -1204,7 +1239,9 @@ void ElekstubeIps::enter_startup_stage_(StartupStage stage, int64_t now_ms) {
   AnimationRequest fallback;
   switch (stage) {
     case StartupStage::BOOT:
-      this->start_clip_(CLIP_BOOT, 0, now_ms);
+      if (this->boot_animation_.load()) {
+        this->start_clip_(CLIP_BOOT, 0, now_ms);
+      }
       break;
     case StartupStage::CONNECTING:
       if (!this->start_clip_(CLIP_CONNECTING, MAX_DURATION_MS, now_ms)) {
@@ -1407,6 +1444,7 @@ void ElekstubeIps::task_loop_() {
   int64_t window_start = esp_timer_get_time();
   const auto count_frame = [&]() {
     frames_in_window++;
+    this->frames_total_.fetch_add(1);
     const int64_t current = esp_timer_get_time();
     if (current - window_start >= 1000000) {
       this->fps_.store(frames_in_window * 1000000.0f / (current - window_start));

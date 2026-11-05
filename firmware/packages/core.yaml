@@ -39,6 +39,7 @@ elekstube_ips:
   id: tubes
   time_id: rtc
   leds_id: leds
+  face_select_id: clock_face
 
 # What the physical buttons do. Any press first skips the animations after starting.
 script:
@@ -254,6 +255,7 @@ select:
     icon: mdi:clock-digital
     optimistic: true
     restore_value: true
+    # The clock replaces these with the faces it has, as its store changes.
     options:
       - Nixie
       - Ice

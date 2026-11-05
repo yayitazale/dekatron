@@ -1,13 +1,16 @@
-"""Build the clip library for the clock from GIF, animated WebP or video files.
+"""Build the store of the clock: its clock faces and clips.
 
-Usage: python tools/make_clips.py clips.bin --clip alarm=alarm.gif --clip wave=wave.mp4:panorama --fps 15
+Usage: python tools/make_clips.py store.bin --face Marble=faces/marble --clip alarm=alarm.gif --fps 15
 
-A clip shows the same picture on every tube, or with ":panorama" one picture across all six,
-cropped to leave out the gap between screens. Panoramas play at only 3 to 4 fps. Videos need
-ffmpeg on the PATH.
+A face is a folder with one image per digit, named 0 to 9 with any image extension. A clip comes
+from a GIF, animated WebP or video, and shows the same picture on every tube, or with ":panorama"
+one picture across all six, cropped to leave out the gap between screens. Panoramas play at only
+3 to 4 fps. Videos need ffmpeg on the PATH. For animations that cross the tubes, see
+tools/make_scenes.py.
 
-Serve the file over HTTP and publish {"url": "http://host/clips.bin"} to
-elekstube/elekstube/clips/download, or flash it over USB at 0x320000.
+The store replaces the whole previous one. Serve the file over HTTP and publish
+{"url": "http://host/store.bin"} to elekstube/elekstube/store/download, or flash it over USB at
+0x2E0000.
 """
 
 import argparse
@@ -22,15 +25,19 @@ from pathlib import Path
 
 from PIL import Image, ImageSequence
 
-from convert import HEIGHT, WIDTH, encode_jpeg, fit_image
+from convert import DIGITS, HEIGHT, WIDTH, encode_jpeg, fit_image, load_face
 
-REGION_BYTES = 0xE0000
-FLASH_OFFSET = 0x320000
-MAGIC = b"EKCL"
-VERSION = 1
+REGION_BYTES = 0x120000
+FLASH_OFFSET = 0x2E0000
+MAGIC = b"EKST"
+VERSION = 2
 NAME_BYTES = 16
-HEADER = struct.Struct("<4sIIII")  # magic, version, total size, CRC32 of the rest, clip count
-CLIP_ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHBxH")  # name, table offset, frames, fps, images per frame, scene blobs
+KIND_CLIP = 0
+KIND_FACE = 1
+HEADER = struct.Struct("<4sIIII")  # magic, version, total size, CRC32 of the rest, entry count
+# name, table offset, frames, fps, images per frame, kind, scene blobs, reserved
+ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHBBHH")
+CLIP_ENTRY = ENTRY
 IMAGE_ENTRY = struct.Struct("<II")  # offset, size
 
 # Must match TUBE_GAP_PIXELS in animation.h.
@@ -114,20 +121,29 @@ def encode_panorama(frames, quality):
     return encoded
 
 
-def build_library(clips):
-    """Packs (name, fps, [frames of JPEG byte strings]) clips, sharing identical images."""
-    if not clips:
-        raise ValueError("Expected at least one clip")
-    names = [name for name, _, _ in clips]
-    if len(set(names)) != len(names):
-        raise ValueError("Clip names must be unique")
+def build_library(clips, faces=()):
+    """Packs the store: faces as (name, [10 JPEG byte strings]) and clips as (name, fps, frames).
 
-    position = HEADER.size + CLIP_ENTRY.size * len(clips)
+    A clip is a list of frames, each a list of JPEG byte strings, or a Scene. Identical images are
+    stored once.
+    """
+    items = [(KIND_FACE, name, 1, [images]) for name, images in faces]
+    items += [(KIND_CLIP, name, fps, frames) for name, fps, frames in clips]
+    if not items:
+        raise ValueError("Expected at least one face or clip")
+    for kind in (KIND_FACE, KIND_CLIP):
+        names = [name for item_kind, name, _, _ in items if item_kind == kind]
+        if len(set(names)) != len(names):
+            raise ValueError("Names must be unique")
+    if len(items) > 255:
+        raise ValueError("The store holds at most 255 faces and clips")
+
+    position = HEADER.size + ENTRY.size * len(items)
     tables = []
-    for name, fps, frames in clips:
+    for kind, name, fps, frames in items:
         encoded_name = name.encode("utf-8")
         if not 1 <= len(encoded_name) < NAME_BYTES:
-            raise ValueError(f"Invalid clip name: {name!r}")
+            raise ValueError(f"Invalid name: {name!r}")
         if isinstance(frames, Scene):
             if not frames.records or not 1 <= fps <= 60 or len(frames.palette) != 512 or len(frames.blobs) > 0xFFFF:
                 raise ValueError(f"{name}: invalid scene")
@@ -137,7 +153,8 @@ def build_library(clips):
         if not frames or not 1 <= fps <= 60:
             raise ValueError(f"{name}: invalid frames or fps")
         images_per_frame = len(frames[0])
-        if images_per_frame not in (1, TUBE_COUNT) or any(len(frame) != images_per_frame for frame in frames):
+        allowed = (DIGITS,) if kind == KIND_FACE else (1, TUBE_COUNT)
+        if images_per_frame not in allowed or any(len(frame) != images_per_frame for frame in frames):
             raise ValueError(f"{name}: inconsistent images per frame")
         tables.append(position)
         position += len(frames) * images_per_frame * IMAGE_ENTRY.size
@@ -148,40 +165,49 @@ def build_library(clips):
     table_bytes = bytearray()
 
     def add_image(image):
-        nonlocal table_bytes
         if image not in offsets:
             offsets[image] = position + len(payload)
             payload.extend(image)
-        table_bytes += IMAGE_ENTRY.pack(offsets[image], len(image))
+        table_bytes.extend(IMAGE_ENTRY.pack(offsets[image], len(image)))
 
-    for (name, fps, frames), table in zip(clips, tables):
+    for (kind, name, fps, frames), table in zip(items, tables):
+        encoded_name = name.encode("utf-8")
         if isinstance(frames, Scene):
             for image in (frames.palette, *frames.records, *frames.blobs):
                 add_image(image)
-            entries.append(CLIP_ENTRY.pack(name.encode("utf-8"), table, len(frames.records), fps, 0, len(frames.blobs)))
+            entries.append(ENTRY.pack(encoded_name, table, len(frames.records), fps, 0, kind, len(frames.blobs), 0))
             continue
         for frame in frames:
             for image in frame:
                 add_image(image)
-        entries.append(CLIP_ENTRY.pack(name.encode("utf-8"), table, len(frames), fps, len(frames[0]), 0))
+        entries.append(ENTRY.pack(encoded_name, table, len(frames), fps, len(frames[0]), kind, 0, 0))
 
     body = b"".join(entries) + bytes(table_bytes) + bytes(payload)
     total = HEADER.size + len(body)
     if total > REGION_BYTES:
-        raise ValueError(f"The library takes {total} bytes but the region holds {REGION_BYTES}")
-    return HEADER.pack(MAGIC, VERSION, total, binascii.crc32(body), len(clips)) + body
+        raise ValueError(f"The store takes {total} bytes but the region holds {REGION_BYTES}")
+    return HEADER.pack(MAGIC, VERSION, total, binascii.crc32(body), len(items)) + body
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--clip", action="append", required=True, metavar="NAME=FILE[:panorama]", dest="clips")
+    parser.add_argument("--face", action="append", default=[], metavar="NAME=FOLDER", dest="faces")
+    parser.add_argument("--clip", action="append", default=[], metavar="NAME=FILE[:panorama]", dest="clips")
     parser.add_argument("--fps", type=int, default=15)
     parser.add_argument("--quality", type=int, default=70)
     args = parser.parse_args()
+    if not args.faces and not args.clips:
+        parser.error("Expected at least one --face or --clip")
 
+    faces = []
     clips = []
     try:
+        for entry in args.faces:
+            name, separator, folder = entry.partition("=")
+            if not separator:
+                parser.error(f"Expected NAME=FOLDER: {entry}")
+            faces.append((name, load_face(folder)))
         for entry in args.clips:
             name, separator, source = entry.partition("=")
             if not separator:
@@ -192,7 +218,7 @@ def main():
             encoded = encode_panorama(frames, args.quality) if panorama else encode_common(frames, args.quality)
             clips.append((name, args.fps, encoded))
             print(f"{name}: {len(frames)} frames, {sum(len(i) for frame in encoded for i in frame)} bytes")
-        library = build_library(clips)
+        library = build_library(clips, faces)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         sys.exit(str(error))
 

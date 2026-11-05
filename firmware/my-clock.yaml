@@ -12,6 +12,7 @@ packages:
   core: !include packages/core.yaml
   telemetry: !include packages/telemetry.yaml
   mqtt: !include packages/mqtt.yaml
+  web: !include packages/web.yaml
 
 wifi:
   ssid: !secret wifi_ssid

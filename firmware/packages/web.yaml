@@ -1,0 +1,6 @@
+# The HTTP API of the clock, for the web page and for anything that wants to control it.
+external_components:
+  - source: ../components
+
+opentube_api:
+  tubes_id: tubes
