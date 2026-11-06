@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Joseba Egia and Dekatron contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 import gzip
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -23,9 +24,11 @@ class BuildWebTest(unittest.TestCase):
             self.assertNotIn("</script", (build_web.WEB / name).read_text(encoding="utf-8"))
 
     def test_the_header_in_the_firmware_is_the_current_page(self):
-        data = gzip.compress(build_web.build_page(), compresslevel=9, mtime=0)
-        self.assertEqual(build_web.to_header(data), build_web.OUTPUT.read_text(encoding="utf-8"),
-                         "web/ changed: run python tools/build_web.py")
+        # What is compared is the page inside the header, not its compressed bytes, which depend on the zlib
+        # that Python was built with.
+        header = build_web.OUTPUT.read_text(encoding="utf-8")
+        packed = bytes(int(value, 16) for value in re.findall(r"0x([0-9A-Fa-f]{2})", header.split("= {", 1)[1]))
+        self.assertEqual(gzip.decompress(packed), build_web.build_page(), "web/ changed: run python tools/build_web.py")
 
 
 if __name__ == "__main__":
