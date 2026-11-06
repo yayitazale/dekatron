@@ -43,14 +43,14 @@ const DekatronColor = (() => {
 .dkc-swatch { width: 34px; height: 34px; border-radius: 10px; border: 3px solid Canvas; box-shadow: 0 0 0 1px color-mix(in srgb, CanvasText 30%, transparent); padding: 0; flex: none; cursor: pointer; }
 dialog.dkc { color: CanvasText; background: Canvas; border: 0; border-radius: 18px; padding: 16px; width: min(320px, 94vw); box-shadow: 0 16px 40px rgb(0 0 0 / .4); }
 dialog.dkc::backdrop { background: rgb(0 0 0 / .5); }
-.dkc-plane { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; touch-action: none; cursor: crosshair; overflow: hidden; }
-.dkc-plane canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dkc-plane { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; touch-action: none; cursor: crosshair; }
+.dkc-plane canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 12px; }
 .dkc-dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5), inset 0 0 0 1px rgb(0 0 0 / .3); pointer-events: none; }
-.dkc-hue { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; margin: 14px 0 6px; background: transparent; touch-action: pan-y; }
-.dkc-hue::-webkit-slider-runnable-track { height: 14px; border-radius: 7px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-.dkc-hue::-moz-range-track { height: 14px; border-radius: 7px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-.dkc-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -6px; border-radius: 50%; background: #fff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5); }
-.dkc-hue::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5); }
+input[type=range].dkc-hue { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; margin: 14px 0 6px; background: transparent; touch-action: pan-y; }
+input[type=range].dkc-hue::-webkit-slider-runnable-track { height: 14px; border-radius: 7px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+input[type=range].dkc-hue::-moz-range-track { height: 14px; border-radius: 7px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+input[type=range].dkc-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -6px; border-radius: 50%; background: #fff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5); }
+input[type=range].dkc-hue::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / .5); }
 .dkc-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .dkc-row.wrap { display: grid; grid-template-columns: repeat(5, 1fr); justify-items: center; gap: 12px; }
 .dkc-now { width: 44px; height: 38px; border-radius: 10px; box-shadow: 0 0 0 1px color-mix(in srgb, CanvasText 30%, transparent); flex: none; }
