@@ -1,0 +1,165 @@
+name: Release
+
+# A tag vX.Y.Z (always made by scripts/release.py, see CONTRIBUTING.md) publishes the release: the firmware images,
+# the themes, the page of the release and the website, which also carries versions.json and the firmware
+# that the page of the clock downloads to update it. Merges to main publish nothing.
+on:
+  push:
+    tags: ['v*']
+  # A run by hand builds everything and keeps the files as artifacts of the run, but publishes nothing: no release
+  # page and no website. It is how to try this file before a real release.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The safety net against tagging without bumping the version: nothing is published when it fails.
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          EXPECTED="v$(tr -d ' \r\n' < VERSION)"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match VERSION (expected $EXPECTED)."
+            echo "Always release with: python scripts/release.py (see CONTRIBUTING.md)"
+            exit 1
+          fi
+          echo "$GITHUB_REF_NAME matches VERSION."
+
+  test:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pip install pillow
+      - run: python -m unittest discover -s tests
+      - run: node --test "tests/*.test.js"
+
+  firmware:
+    needs: check-version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [clock, full]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install esphome==2026.10.2
+      # An empty password in the secrets is what the profiles need: Wi-Fi and the password of the updates are set on the clock.
+      - run: cp firmware/secrets.example.yaml firmware/secrets.yaml
+      - name: Compile
+        working-directory: firmware
+        run: esphome compile ${{ matrix.profile }}.yaml 2>&1 | tee build.log
+      - name: Check the size of the app
+        working-directory: firmware
+        run: |
+          used=$(grep -oE 'Flash: .*used ([0-9]+) bytes' build.log | grep -oE '[0-9]+ bytes' | head -1 | cut -d' ' -f1)
+          echo "App: ${used} bytes of 1441792"
+          test -n "$used"
+          test "$used" -le 1339392
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.profile }}
+          path: |
+            firmware/.esphome/build/elekstube/build/firmware.factory.bin
+            firmware/.esphome/build/elekstube/build/firmware.ota.bin
+          if-no-files-found: error
+
+  release:
+    needs: [test, firmware]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-clock
+          path: firmware-dl/clock
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-full
+          path: firmware-dl/full
+      - name: Build the themes of the gallery
+        run: python tools/build_themes.py
+      - name: Assemble the release
+        run: |
+          VERSION="$(tr -d ' \r\n' < VERSION)"
+          python tools/build_release.py "$VERSION" --firmware firmware-dl --themes docs/public/themes --out release --site docs/public --notes notes.md
+          ls -l release
+      - name: Keep what the website needs
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-extras
+          path: |
+            docs/public/versions.json
+            docs/public/firmware
+            docs/public/themes
+          if-no-files-found: error
+      - name: Keep the files of the release
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            release
+            notes.md
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --title "Dekatron ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+
+  # The website, with the gallery, versions.json and the firmware. It needs Pages to be set to GitHub Actions in the
+  # settings of the repository.
+  pages:
+    needs: release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: site-extras
+          path: docs/public
+      - run: npm ci
+        working-directory: docs
+      - run: npm run build
+        working-directory: docs
+      - name: What the page of the clock reads is in the site
+        run: |
+          test -s docs/.vitepress/dist/versions.json
+          test -s docs/.vitepress/dist/themes/index.json
+          test -s docs/.vitepress/dist/creator/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
