@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 WEB = ROOT / "web"
 OUTPUT = ROOT / "components" / "dekatron_api" / "web_index.h"
-SCRIPTS = ("store.js", "timezones.js", "app.js")
+SCRIPTS = ("store.js", "timezones.js", "update.js", "app.js")
 WARN_BYTES = 70 * 1024
 LIMIT_BYTES = 100 * 1024
 
