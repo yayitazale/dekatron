@@ -7,9 +7,10 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from convert import DIGITS, HEIGHT, WIDTH, encode_jpeg
 
 OUTPUT = Path(__file__).parent.parent / "components" / "elekstube_ips" / "faces_builtin.h"
+# The firmware carries one face, so the clock always has something to show. The others are made in
+# the page, or packed with tools/make_clips.py, and live in the store.
 FACES = (
     ("NIXIE", (255, 110, 20), (255, 215, 150)),
-    ("ICE", (0, 70, 255), (60, 160, 255)),
 )
 FONT_SIZE = 200
 MESH_STEP = 9

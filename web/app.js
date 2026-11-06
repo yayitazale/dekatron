@@ -5,8 +5,8 @@
   const Zones = DekatronZones;
 
   const MAX_FACES = 5;
-  const BUILT_IN = ["Nixie", "Ice"]; // the faces of the firmware, which the store does not hold
-  const FACE_COLORS = { Nixie: "#ff8a2a", Ice: "#4aa8ff" };
+  const BUILT_IN = ["Nixie"]; // the face of the firmware, which the store does not hold
+  const FACE_COLORS = { Nixie: "#ff8a2a" };
   // A theme is these four animations, and the clock always needs all of them.
   const ROLES = [["boot", "Startup"], ["connecting", "Connecting"], ["online", "Connected"], ["countdown_end", "Countdown finale"]];
   const VIEWS = ["clock", "style", "settings"];
@@ -361,16 +361,18 @@
 
   // ---- style -----------------------------------------------------------------------------------
 
+  const themeEntry = () => (app.working ? app.working.entries.find((entry) => entry.kind === Store.KIND_THEME) : null);
+
   function viewTheme() {
     const clips = app.state.clips;
     const fileInput = h("input", { type: "file", hidden: true, onchange: async (event) => {
       try {
         const parsed = Store.parse(new Uint8Array(await event.target.files[0].arrayBuffer()));
-        const clipsOfFile = parsed.entries.filter((entry) => entry.kind === Store.KIND_CLIP);
-        if (!ROLES.every(([name]) => clipsOfFile.some((clip) => clip.name === name))) {
-          throw new Error("That is not a theme: it needs boot, connecting, online and countdown_end");
-        }
-        edit([...storeFaces(), ...clipsOfFile]);
+        const wanted = ROLES.map(([name]) => parsed.entries.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
+        if (wanted.includes(undefined)) throw new Error("That is not a theme: it needs boot, connecting, online and countdown_end");
+        const named = parsed.entries.find((entry) => entry.kind === Store.KIND_THEME);
+        // The theme of the file takes the place of the one of the clock, and the faces stay.
+        edit([...storeFaces(), ...(named ? [named] : []), ...wanted]);
       } catch (error) {
         toast(error.message, true);
       }
@@ -382,12 +384,16 @@
         h("div", { class: "grow" }, h("div", { class: "name" }, label),
           h("div", { class: "muted" }, clip ? `${(clip.frames / clip.fps).toFixed(1)} s · ${clip.fps} fps` : "Missing")));
     });
-    const bytes = app.working ? app.working.entries.filter((entry) => entry.kind === Store.KIND_CLIP)
-      .reduce((total, entry) => total + entry.images.reduce((sum, image) => sum + image.length, 0), 0) : 0;
+    const entry = themeEntry();
+    const info = entry ? Store.themeInfo(entry) : {};
+    const bytes = app.working ? app.working.entries.filter((candidate) => candidate.kind === Store.KIND_CLIP)
+      .reduce((total, candidate) => total + candidate.images.reduce((sum, image) => sum + image.length, 0), 0) : 0;
+    const details = [info.author && `by ${info.author}`, info.license, bytes ? kilobytes(bytes) : ""].filter(Boolean).join(" · ");
     return card("Theme",
       h("div", { class: "row between" },
-        h("div", {}, h("div", { class: "big" }, "Four animations"), h("div", { class: "muted" }, bytes ? kilobytes(bytes) : "")),
+        h("div", {}, h("div", { class: "big" }, entry ? entry.name : "No theme"), h("div", { class: "muted" }, details)),
         h("button", { class: "btn primary", onclick: () => fileInput.click() }, "Change theme"), fileInput),
+      info.description ? h("p", { class: "muted", style: "margin-top:10px" }, info.description) : "",
       h("p", { class: "muted", style: "margin:12px 0 14px" }, "A theme is a set of four animations, and the clock always needs all four. Changing it replaces them together."),
       h("div", {}, rows));
   }

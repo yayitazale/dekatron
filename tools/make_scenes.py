@@ -1,9 +1,12 @@
-"""Draw the default scenes and pack them as a store.
+"""Draw the scenes of the default theme and pack them as a theme file.
 
 A scene is a sequence of canvases that cross the tubes. Like a GIF, it stores only the rectangles
 that change between frames, so a small moving shape stays fast however far it travels.
 
-Usage: python tools/make_scenes.py store.bin [--preview folder]
+Usage: python tools/make_scenes.py space.bin [--preview folder]
+
+A theme file is a store with the four animations that a theme is made of, and its name and data. In
+the page, Change theme takes it in place of the theme of the clock and keeps the faces.
 """
 
 import argparse
@@ -481,13 +484,6 @@ def landing_scene(fps=15):
     return fps, frames
 
 
-def connect_demo_scene():
-    """The orbit followed by the landing, to judge them together."""
-    fps, orbit = orbit_scene()
-    _, landing = landing_scene(fps)
-    return fps, orbit + landing
-
-
 def launch_scene(fps=15):
     """The tower leans back on the centre left tube as the rocket lifts off on the centre right one."""
     left = 2 * TUBE_PITCH
@@ -541,15 +537,20 @@ def launch_scene(fps=15):
     return fps, frames
 
 
+THEME = ("Space", {
+    "author": "Dekatron",
+    "license": "MIT",
+    "description": "An astronaut on a tether, a lander in lunar orbit, and a rocket launch",
+})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("output", type=Path)
     parser.add_argument("--preview", type=Path, help="write an animated GIF per scene to this folder")
-    parser.add_argument("--demo", action="store_true", help="join the orbit and landing in one clip called connect_demo")
     args = parser.parse_args()
 
-    connection = [("connect_demo", connect_demo_scene)] if args.demo else [("connecting", orbit_scene), ("online", landing_scene)]
-    makers = [("boot", boot_scene), *connection, ("countdown_end", launch_scene)]
+    makers = [("boot", boot_scene), ("connecting", orbit_scene), ("online", landing_scene), ("countdown_end", launch_scene)]
     made = [(name, *maker()) for name, maker in makers]
     entries = build_palette([canvases for _, _, canvases in made])
     clips = []
@@ -565,7 +566,7 @@ def main():
             canvases[0].save(args.preview / f"{name}.gif", save_all=True, append_images=canvases[1:],
                              duration=1000 // fps, loop=0)
     try:
-        library = build_library(clips)
+        library = build_library(clips, theme=THEME)
     except ValueError as error:
         sys.exit(str(error))
     args.output.write_bytes(library)

@@ -90,12 +90,14 @@ static bool scene_is_valid(const uint8_t *base, const Entry &entry) {
 
 static bool entry_is_valid(const uint8_t *base, uint32_t total, const Entry &entry) {
   const bool face = entry.kind == static_cast<uint8_t>(EntryKind::FACE);
-  if (entry.kind > static_cast<uint8_t>(EntryKind::FACE) || entry.frames == 0 || entry.name[0] == '\0') {
+  const bool theme = entry.kind == static_cast<uint8_t>(EntryKind::THEME);
+  if (entry.kind > static_cast<uint8_t>(EntryKind::THEME) || entry.frames == 0 || entry.name[0] == '\0') {
     return false;
   }
   if (face ? (entry.images_per_frame != FACE_IMAGES || entry.frames != 1)
-           : (entry.fps == 0 || (entry.images_per_frame != 1 && entry.images_per_frame != 6 &&
-                                 entry.images_per_frame != SCENE_IMAGES))) {
+      : theme ? (entry.images_per_frame != 1 || entry.frames != 1)
+              : (entry.fps == 0 || (entry.images_per_frame != 1 && entry.images_per_frame != 6 &&
+                                    entry.images_per_frame != SCENE_IMAGES))) {
     return false;
   }
   const uint64_t images = table_length(entry);
@@ -137,6 +139,8 @@ void Store::load() {
     ESP_LOGW(TAG, "The store is malformed");
     return;
   }
+  uint32_t faces = 0;
+  uint32_t themes = 0;
   for (uint32_t index = 0; index < header.entry_count; index++) {
     Entry entry;
     memcpy(&entry, base + sizeof(Header) + index * sizeof(Entry), sizeof(entry));
@@ -144,6 +148,12 @@ void Store::load() {
       ESP_LOGW(TAG, "The store is malformed");
       return;
     }
+    faces += entry.kind == static_cast<uint8_t>(EntryKind::FACE);
+    themes += entry.kind == static_cast<uint8_t>(EntryKind::THEME);
+  }
+  if (faces > MAX_STORE_FACES || themes > 1) {
+    ESP_LOGW(TAG, "The store has too many faces or themes");
+    return;
   }
   this->base_ = base;
   this->size_ = header.total_size;
@@ -208,6 +218,16 @@ uint8_t Store::count(EntryKind kind) const {
     found += read_entry(this->base_, index).kind == static_cast<uint8_t>(kind);
   }
   return found;
+}
+
+bool Store::theme_name(char *buffer) const {
+  uint8_t entry;
+  if (!this->nth(EntryKind::THEME, 0, &entry)) {
+    buffer[0] = '\0';
+    return false;
+  }
+  this->name(entry, buffer);
+  return true;
 }
 
 ClipInfo Store::info(uint8_t entry) const {

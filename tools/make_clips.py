@@ -15,6 +15,7 @@ The store replaces the whole previous one. Serve the file over HTTP and publish
 
 import argparse
 import binascii
+import json
 import shutil
 import struct
 import subprocess
@@ -34,6 +35,10 @@ VERSION = 2
 NAME_BYTES = 16
 KIND_CLIP = 0
 KIND_FACE = 1
+KIND_THEME = 2
+MAX_FACES = 4  # besides the one built into the firmware
+THEME_ROLES = ("boot", "connecting", "online", "countdown_end")
+MAX_THEME_INFO = 512
 HEADER = struct.Struct("<4sIIII")  # magic, version, total size, CRC32 of the rest, entry count
 # name, table offset, frames, fps, images per frame, kind, scene blobs, reserved
 ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHBBHH")
@@ -121,16 +126,29 @@ def encode_panorama(frames, quality):
     return encoded
 
 
-def build_library(clips, faces=()):
-    """Packs the store: faces as (name, [10 JPEG byte strings]) and clips as (name, fps, frames).
+def theme_info(info):
+    """The data of a theme as it is stored: compact JSON, such as {"author": ..., "license": ...}."""
+    encoded = json.dumps(info, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(encoded) > MAX_THEME_INFO:
+        raise ValueError(f"The data of a theme takes {len(encoded)} bytes and the limit is {MAX_THEME_INFO}")
+    return encoded
 
-    A clip is a list of frames, each a list of JPEG byte strings, or a Scene. Identical images are
-    stored once.
+
+def build_library(clips, faces=(), theme=None):
+    """Packs the store: faces as (name, [10 JPEG byte strings]), clips as (name, fps, frames) and a theme.
+
+    A clip is a list of frames, each a list of JPEG byte strings, or a Scene. A theme is
+    (name, info), where info is a dict with the author, the license and a description. Identical
+    images are stored once. A store holds at most MAX_FACES faces, and one theme.
     """
     items = [(KIND_FACE, name, 1, [images]) for name, images in faces]
+    if theme is not None:
+        items.append((KIND_THEME, theme[0], 1, [[theme_info(theme[1])]]))
     items += [(KIND_CLIP, name, fps, frames) for name, fps, frames in clips]
     if not items:
-        raise ValueError("Expected at least one face or clip")
+        raise ValueError("Expected at least one face, clip or theme")
+    if len(faces) > MAX_FACES:
+        raise ValueError(f"A store holds at most {MAX_FACES} faces")
     for kind in (KIND_FACE, KIND_CLIP):
         names = [name for item_kind, name, _, _ in items if item_kind == kind]
         if len(set(names)) != len(names):
@@ -153,7 +171,7 @@ def build_library(clips, faces=()):
         if not frames or not 1 <= fps <= 60:
             raise ValueError(f"{name}: invalid frames or fps")
         images_per_frame = len(frames[0])
-        allowed = (DIGITS,) if kind == KIND_FACE else (1, TUBE_COUNT)
+        allowed = {KIND_FACE: (DIGITS,), KIND_THEME: (1,)}.get(kind, (1, TUBE_COUNT))
         if images_per_frame not in allowed or any(len(frame) != images_per_frame for frame in frames):
             raise ValueError(f"{name}: inconsistent images per frame")
         tables.append(position)

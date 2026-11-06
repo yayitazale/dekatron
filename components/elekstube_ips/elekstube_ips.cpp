@@ -486,7 +486,7 @@ void ElekstubeIps::load_store_() {
   this->store_.load();
 }
 
-static const char *const BUILTIN_FACE_NAMES[BUILTIN_FACE_COUNT] = {"Nixie", "Ice"};
+static const char *const BUILTIN_FACE_NAMES[BUILTIN_FACE_COUNT] = {"Nixie"};
 
 void ElekstubeIps::refresh() {
   this->redraw_.store(true);

@@ -9,6 +9,8 @@ const DekatronStore = (() => {
   const TABLE_ENTRY_BYTES = 8;
   const KIND_CLIP = 0;
   const KIND_FACE = 1;
+  const KIND_THEME = 2;
+  const MAX_FACES = 4; // besides the one built into the firmware
   const FACE_IMAGES = 10;
   const SCENE = 0; // images per frame of a scene
 
@@ -84,6 +86,8 @@ const DekatronStore = (() => {
   function build(entries, capacity = Infinity) {
     if (!entries.length) throw new Error("nothing to store");
     if (entries.length > 255) throw new Error("at most 255 faces and clips");
+    if (entries.filter((entry) => entry.kind === KIND_FACE).length > MAX_FACES) throw new Error(`a store holds at most ${MAX_FACES} faces`);
+    if (entries.filter((entry) => entry.kind === KIND_THEME).length > 1) throw new Error("a store holds one theme");
     for (const [index, entry] of entries.entries()) {
       const encoded = new TextEncoder().encode(entry.name);
       if (encoded.length < 1 || encoded.length >= NAME_BYTES) throw new Error(`invalid name: ${entry.name}`);
@@ -153,7 +157,22 @@ const DekatronStore = (() => {
     return { name, kind: KIND_FACE, frames: 1, fps: 1, imagesPerFrame: FACE_IMAGES, sceneBlobs: 0, images: digitImages };
   }
 
-  const api = { parse, build, face, crc32, KIND_CLIP, KIND_FACE, FACE_IMAGES, SCENE, NAME_BYTES };
+  // A theme is its name and a little data, such as its author and license, kept as JSON in its one image.
+  function theme(name, info) {
+    const bytes = new TextEncoder().encode(JSON.stringify(info));
+    if (bytes.length > 512) throw new Error("the data of a theme is too long");
+    return { name, kind: KIND_THEME, frames: 1, fps: 1, imagesPerFrame: 1, sceneBlobs: 0, images: [bytes] };
+  }
+
+  function themeInfo(entry) {
+    try {
+      return JSON.parse(new TextDecoder().decode(entry.images[0]));
+    } catch (error) {
+      return {};
+    }
+  }
+
+  const api = { parse, build, face, theme, themeInfo, crc32, KIND_CLIP, KIND_FACE, KIND_THEME, MAX_FACES, FACE_IMAGES, SCENE, NAME_BYTES };
   if (typeof module !== "undefined") module.exports = api;
   return api;
 })();

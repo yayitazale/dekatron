@@ -18,7 +18,7 @@ The clock speaks plain HTTP, so on a network you do not trust a password can be 
 |---|---|
 | `GET /` | The [web page](web.md) of the clock. Public |
 | `GET /api/info` | Who this is. Public: `product`, `api`, `name`, `auth` |
-| `GET /api/state` | State, settings, the faces and clips it has, memory and store status |
+| `GET /api/state` | State, settings, the faces and clips it has, the name of its theme, memory and store status |
 | `GET /api/store` | The store as it is in flash, a file of up to 1152 KB |
 | `POST /api/store` | Replaces the store with the body, as `application/octet-stream` |
 | `POST /api/play` | Starts an animation, with the JSON of the [MQTT play topic](../ha/README.md) |
@@ -40,7 +40,7 @@ Settings are kept across restarts.
 
 ## Replacing the store
 
-The store is one file made by `tools/make_clips.py` (see its help). It holds the clock faces and the clips, and a new one replaces the whole previous one.
+The store is one file made by `tools/make_clips.py` (see its help). It holds up to four clock faces, and a **theme**: its name and data, and the four animations `boot`, `connecting`, `online` and `countdown_end` that the clock always needs. A new store replaces the whole previous one. A file with only a theme, such as the one `tools/make_scenes.py` writes, is what the page takes for Change theme, keeping the faces.
 
 ```bash
 curl -X POST http://elekstube.local/api/store -H "X-Dekatron: 1" \
@@ -53,4 +53,4 @@ What to expect:
 - **A file that is not a store** is refused before anything is erased, and the current store stays.
 - **A file that is damaged further in**, which only its checksum reveals at the end, is refused too, but by then the old store is gone. Check the file before sending it.
 - **A connection that breaks halfway** leaves the store empty. The clock gives up on it after 10 s, and a new upload then works.
-- The faces built into the firmware, Nixie and Ice, are always available.
+- The face built into the firmware, Nixie, is always available. The store adds up to four more, so a clock has five faces at most.

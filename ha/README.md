@@ -53,7 +53,7 @@ Invalid and rejected requests are only reported in the device log.
 
 ## Store
 
-The clock keeps one store with its extra clock faces and every clip, up to 1152 KB. Build it and publish its URL:
+The clock keeps one store with up to four extra clock faces and its theme of four animations, up to 1152 KB. Build it and publish its URL:
 
 ```bash
 python tools/make_clips.py store.bin --face Marble=faces/marble --clip alarm=alarm.gif --clip wave=wave.gif:panorama --fps 15
@@ -66,7 +66,7 @@ python tools/make_clips.py store.bin --face Marble=faces/marble --clip alarm=ala
 Publish to `elekstube/elekstube/store/download` and follow the Store sensor, which says how many faces and clips there are, or how a download is going. The same store can be uploaded to the clock's own [HTTP API](../docs/api.md).
 
 - A file in `/config/www` is served at `/local/`. Only plain HTTP is supported.
-- A download replaces the whole store. A wrong URL or a file that is not a store keeps the current one, but a download that fails after it starts leaves the store empty until the next one succeeds. The faces built into the firmware, Nixie and Ice, are always there.
+- A download replaces the whole store. A wrong URL or a file that is not a store keeps the current one, but a download that fails after it starts leaves the store empty until the next one succeeds. The face built into the firmware, Nixie, is always there.
 - The Clock Face selector lists the faces of the store, but Home Assistant only reads its options when it connects, so reload the integration to see new ones.
 - Clips play the same picture on every tube at up to about 20 fps. Panoramas show one picture across all six at only 3 to 4 fps. Animations that cross the tubes are made as scenes, which reach 15 to 20 fps, see `tools/make_scenes.py`.
 - Videos need `ffmpeg` on the PATH. GIF and animated WebP do not.

@@ -330,6 +330,10 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
   json += ",\"capacity\":";
   append_number(json, static_cast<long>(store.capacity()));
 
+  char theme[Store::NAME_BYTES + 1];
+  store.theme_name(theme);
+  json += ",\"theme\":";
+  append_json_string(json, theme);
   json += "},\"faces\":[";
   for (uint8_t face = 0; face < this->tubes_->face_count(); face++) {
     this->tubes_->face_name(face, name);

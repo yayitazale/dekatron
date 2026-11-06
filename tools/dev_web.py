@@ -1,6 +1,9 @@
 """Serve the web page from web/ on this computer, sending /api/ calls to a real clock.
 
-Usage: python tools/dev_web.py CLOCK_HOST [--port 8000]
+Usage: python tools/dev_web.py CLOCK_HOST [--port 8000] [--files FOLDER]
+
+With --files, the files of that folder are served under /files/, which is handy to try a theme or a
+backup in the page without a file picker.
 
 The page is rebuilt from the files on every request, so a change shows with a reload and nothing has
 to be flashed. The API calls are the clock's own, and they really change it.
@@ -10,13 +13,14 @@ import argparse
 import http.client
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from build_web import build_page
 
 HOP_BY_HOP = {"connection", "keep-alive", "transfer-encoding", "te", "upgrade", "proxy-authorization", "trailer"}
 
 
-def make_handler(clock):
+def make_handler(clock, files=None):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -39,6 +43,16 @@ def make_handler(clock):
                 self.wfile.write(body)
             elif self.path.startswith("/api/"):
                 self.forward()
+            elif files is not None and self.path.startswith("/files/") and "/" not in self.path[len("/files/"):] and ".." not in self.path:
+                path = files / self.path[len("/files/"):]
+                if not path.is_file():
+                    return self.send_error(404)
+                body = path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             else:
                 self.send_error(404)
 
@@ -70,8 +84,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("clock", help="the address of the clock, such as elekstube.local")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--files", type=Path, help="a folder of files to serve under /files/")
     args = parser.parse_args()
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.clock))
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.clock, args.files))
     print(f"http://127.0.0.1:{args.port}/  ->  {args.clock}")
     server.serve_forever()
 

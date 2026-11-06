@@ -22,7 +22,11 @@ static constexpr uint32_t SCENE_PALETTE_BYTES = 512;
 // A clock face is ten JPEG images, one per digit.
 static constexpr uint8_t FACE_IMAGES = 10;
 
-enum class EntryKind : uint8_t { CLIP = 0, FACE = 1 };
+// A theme entry holds the name of the theme and, as JSON in its one image, its author and license.
+enum class EntryKind : uint8_t { CLIP = 0, FACE = 1, THEME = 2 };
+
+// The store holds this many faces besides the one built into the firmware.
+static constexpr uint8_t MAX_STORE_FACES = 4;
 
 struct ClipInfo {
   uint32_t frames;
@@ -68,6 +72,8 @@ class Store {
   // The nth entry of a kind, counting from 0.
   bool nth(EntryKind kind, uint8_t nth, uint8_t *entry) const;
   uint8_t count(EntryKind kind) const;
+  // The name of the theme, or false when the store has none.
+  bool theme_name(char *buffer) const;
   ClipInfo info(uint8_t entry) const;
   void image(uint8_t entry, uint32_t frame, uint8_t image, const uint8_t **data, uint32_t *size) const;
   void table_entry(uint8_t entry, uint32_t position, const uint8_t **data, uint32_t *size) const;

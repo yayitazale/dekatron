@@ -1,4 +1,5 @@
 import binascii
+import json
 import sys
 import tempfile
 import unittest
@@ -43,6 +44,25 @@ class BuildLibraryTest(unittest.TestCase):
         self.assertEqual(clips["Neon"][1:], (10, digits))
         kinds = [make_clips.ENTRY.unpack_from(library, make_clips.HEADER.size + i * make_clips.ENTRY.size)[5] for i in range(3)]
         self.assertEqual(kinds, [make_clips.KIND_FACE, make_clips.KIND_FACE, make_clips.KIND_CLIP])
+
+    def test_a_theme_is_stored_with_its_data(self):
+        info = {"author": "Someone", "license": "MIT"}
+        library = make_clips.build_library([("boot", 15, [[b"a"]])], theme=("Space", info))
+        _, _, total, _, entries = parse_library(library)
+        self.assertEqual(sorted(entries), ["Space", "boot"])
+        fps, per_frame, images = entries["Space"]
+        self.assertEqual(per_frame, 1)
+        self.assertEqual(json.loads(images[0]), info)
+        kinds = [make_clips.ENTRY.unpack_from(library, make_clips.HEADER.size + i * make_clips.ENTRY.size)[5] for i in range(2)]
+        self.assertEqual(kinds, [make_clips.KIND_THEME, make_clips.KIND_CLIP])
+
+    def test_a_store_holds_a_few_faces_and_one_theme(self):
+        digits = [b"x"] * 10
+        make_clips.build_library([], [(f"Face{i}", digits) for i in range(make_clips.MAX_FACES)])
+        with self.assertRaises(ValueError):
+            make_clips.build_library([], [(f"Face{i}", digits) for i in range(make_clips.MAX_FACES + 1)])
+        with self.assertRaises(ValueError):
+            make_clips.build_library([], theme=("Big", {"description": "x" * make_clips.MAX_THEME_INFO}))
 
     def test_identical_images_are_stored_once(self):
         image = b"x" * 1000

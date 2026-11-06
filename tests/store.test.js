@@ -53,6 +53,31 @@ test("adds and removes entries", () => {
   assert.deepStrictEqual(removed.map((e) => e.name), ["Neon", "six", "scene"]);
 });
 
+test("reads and writes a theme", () => {
+  const script = `
+import sys
+sys.path.insert(0, "tools")
+import make_clips as c
+lib = c.build_library([("boot", 15, [[b"aaaa"]])], theme=("Space", {"author": "A", "license": "MIT"}))
+sys.stdout.buffer.write(lib)`;
+  const original = new Uint8Array(execFileSync(python, ["-I", "-c", script], { cwd: root, maxBuffer: 1 << 24 }));
+  const { entries } = store.parse(original);
+  const theme = entries.find((entry) => entry.kind === store.KIND_THEME);
+  assert.strictEqual(theme.name, "Space");
+  assert.deepStrictEqual(store.themeInfo(theme), { author: "A", license: "MIT" });
+  assert.strictEqual(Buffer.compare(Buffer.from(original), Buffer.from(store.build(entries))), 0);
+  const made = store.parse(store.build([store.theme("Cats", { author: "B" }), entries[1]])).entries;
+  assert.deepStrictEqual(made.map((entry) => entry.name), ["Cats", "boot"]);
+});
+
+test("limits the faces and the themes", () => {
+  const digits = Array.from({ length: 10 }, () => new Uint8Array([1]));
+  const faces = (count) => Array.from({ length: count }, (_, i) => store.face(`Face${i}`, digits));
+  store.build(faces(store.MAX_FACES));
+  assert.throws(() => store.build(faces(store.MAX_FACES + 1)), /at most 4 faces/);
+  assert.throws(() => store.build([store.theme("A", {}), store.theme("B", {})]), /one theme/);
+});
+
 test("identical images are stored once", () => {
   const image = new Uint8Array(1000).fill(7);
   const clip = { name: "loop", kind: 0, frames: 10, fps: 15, imagesPerFrame: 1, sceneBlobs: 0, images: Array(10).fill(image) };
