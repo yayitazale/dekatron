@@ -53,6 +53,19 @@ git push origin main --follow-tags
 
 To back out before pushing: `git tag -d vX.Y.Z && git reset --hard HEAD~1`.
 
+### What the tag publishes
+
+`.github/workflows/release.yml` runs when the tag arrives, and publishes nothing if a step fails:
+
+1. **check-version** compares the tag with `VERSION`.
+2. **test** runs the tests of Python and Node, and **firmware** compiles `clock` and `full`, with the same limit on the size of the app as CI.
+3. **release** builds the themes of the gallery (`tools/build_themes.py`) and assembles the files with `tools/build_release.py`: for each profile `dekatron-X.Y.Z-PROFILE.factory.bin` (the first installation, written at address 0, with the default theme in the store) and `.ota.bin` (to update), each theme, and `SHA256SUMS`. It then creates the release page of GitHub with the notes of that version from `CHANGELOG.md`.
+4. **pages** builds the website with the gallery, the creator, `versions.json` (what the page of the clock reads to tell that there is a newer firmware) and a copy of the `.ota.bin` files, and deploys it. The firmware is copied to the site because a browser cannot read the downloads of the release page from another site. For this, Pages has to be set to **GitHub Actions** in the settings of the repository.
+
+### The table of partitions is frozen
+
+`firmware/partitions.csv` cannot be changed on a clock over the air, so a test (`tests/test_partitions.py`) fails if it changes. The store lives at `0x2E0000`, 1152 KB, and the two slots of the app are 1408 KB each.
+
 ## Local development
 
 Needs Python 3.12 or later with Pillow, and Node 22.
