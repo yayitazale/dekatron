@@ -121,6 +121,7 @@ class ElekstubeIps : public Component {
   void update_startup_(int64_t now_ms, bool time_valid);
   void draw_setup_screen_();
   void update_setup_client_();
+  void update_led_track_();
   void draw_setup_qr_(uint8_t tube, const char *text);
   void draw_setup_icon_(uint8_t tube, const uint8_t *icon, size_t size);
   uint16_t current_dim_() const;
@@ -182,6 +183,9 @@ class ElekstubeIps : public Component {
   std::atomic<uint8_t> led_event_{0};
   std::atomic<uint32_t> led_color_{0};
   std::atomic<uint32_t> animation_start_ms32_{0};
+  std::atomic<uint32_t> led_values_[6]{};  // the colors of the lights of the scene that is playing
+  std::atomic<bool> led_dirty_{false};
+  std::atomic<bool> led_track_active_{false};
   std::atomic<StartupStage> startup_stage_{StartupStage::BOOT};
 
   // Owned by the drawing task.

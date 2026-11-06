@@ -31,7 +31,7 @@ const DekatronStore = (() => {
   }
 
   function tableLength(entry) {
-    return entry.imagesPerFrame === SCENE ? 1 + entry.frames + entry.sceneBlobs : entry.frames * entry.imagesPerFrame;
+    return entry.imagesPerFrame === SCENE ? 1 + entry.frames + entry.sceneBlobs + (entry.reserved & 1) : entry.frames * entry.imagesPerFrame;
   }
 
   // Reads a store. Throws an Error that says what is wrong, after checking it like the clock does.
@@ -59,6 +59,7 @@ const DekatronStore = (() => {
         imagesPerFrame: bytes[at + 26],
         kind: bytes[at + 27],
         sceneBlobs: view.getUint16(at + 28, true),
+        reserved: view.getUint16(at + 30, true), // bit 0: a scene has a track of lights, which is its last image
         images: [],
       };
       const table = view.getUint32(at + 16, true);
@@ -141,6 +142,7 @@ const DekatronStore = (() => {
       out[at + 26] = entry.imagesPerFrame;
       out[at + 27] = entry.kind;
       view.setUint16(at + 28, entry.sceneBlobs, true);
+      view.setUint16(at + 30, entry.reserved || 0, true);
       entry.images.forEach((image, j) => {
         view.setUint32(tables[i] + j * TABLE_ENTRY_BYTES, offsets[i][j], true);
         view.setUint32(tables[i] + j * TABLE_ENTRY_BYTES + 4, image.length, true);

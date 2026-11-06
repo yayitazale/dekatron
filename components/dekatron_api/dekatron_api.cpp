@@ -356,7 +356,9 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
     append_number(json, static_cast<long>(info.fps));
     json += ",\"layout\":\"";
     json += layout_name(info.images_per_frame);
-    json += "\"}";
+    json += "\",\"leds\":";
+    json += info.leds ? "true" : "false";
+    json += "}";
   }
   json += "]}";
   this->reply_(request, 200, json);

@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "effects.h"
+#include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/light_call.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/application.h"
@@ -206,7 +207,21 @@ void ElekstubeIps::loop() {
   this->wifi_configured_.store(wifi::global_wifi_component->has_sta());
   this->update_setup_client_();
   this->apply_led_event_();
+  this->update_led_track_();
   this->update_led_pulse_();
+}
+
+// The scene draws on the other core and leaves its colors here. The LEDs are written from the main loop.
+void ElekstubeIps::update_led_track_() {
+  if (this->leds_ == nullptr || !this->led_track_active_.load() || !this->led_dirty_.exchange(false)) {
+    return;
+  }
+  auto *strip = static_cast<light::AddressableLight *>(this->leds_->get_output());
+  for (int led = 0; led < TUBE_COUNT; led++) {
+    const uint32_t color = this->led_values_[led].load();
+    (*strip)[led] = Color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
+  }
+  strip->schedule_show();
 }
 
 void ElekstubeIps::update_led_pulse_() {
@@ -282,6 +297,7 @@ bool ElekstubeIps::download_store(const char *url) {
 bool ElekstubeIps::play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
                                 const char *color, int loops) {
   AnimationRequest request;
+  bool clip_lights = false;
   if (strcmp(type, "effect") == 0) {
     request.effect = effect_from_name(name);
     if (request.effect == Effect::NONE || request.effect == Effect::CLIP) {
@@ -294,7 +310,10 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
       ESP_LOGW(TAG, "Unknown clip: %s", name);
       return false;
     }
-    request.control_leds = color[0] != '\0';
+    // A scene with lights drives them itself, from black, unless a color is asked for.
+    const bool lights = this->store_.info(request.clip_index).leds;
+    request.control_leds = color[0] != '\0' || lights;
+    clip_lights = lights && color[0] == '\0';
   } else {
     ESP_LOGW(TAG, "Unsupported animation type: %s", type);
     return false;
@@ -303,7 +322,7 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
     ESP_LOGW(TAG, "Invalid tubes: %s", tubes);
     return false;
   }
-  request.color = effect_default_color(request.effect);
+  request.color = clip_lights ? Rgb{0, 0, 0} : effect_default_color(request.effect);
   if (color[0] != '\0' && !parse_color(color, &request.color)) {
     ESP_LOGW(TAG, "Invalid colour: %s", color);
     return false;
@@ -971,6 +990,19 @@ bool ElekstubeIps::draw_scene_frame_(const ClipInfo &info) {
   if (took_us > this->scene_slowest_us_) {
     this->scene_slowest_us_ = took_us;
   }
+  if (info.leds) {
+    const uint8_t *track;
+    uint32_t track_size;
+    this->store_.table_entry(request.clip_index, 1 + info.frames + info.scene_blobs, &track, &track_size);
+    if (track_size == info.frames * LED_FRAME_BYTES) {
+      const uint8_t *colors = track + frame * LED_FRAME_BYTES;
+      for (int led = 0; led < TUBE_COUNT; led++) {
+        this->led_values_[led].store((colors[led * 3] << 16) | (colors[led * 3 + 1] << 8) | colors[led * 3 + 2]);
+      }
+      this->led_dirty_.store(true);
+      this->led_track_active_.store(true);
+    }
+  }
   this->scene_frames_drawn_++;
   vTaskDelay(1);
   return true;
@@ -1096,6 +1128,7 @@ void ElekstubeIps::update_animation_(int64_t now_ms) {
       return;
     }
     this->animation_active_ = false;
+    this->led_track_active_.store(false);
     this->active_priority_.store(0);
     this->active_effect_.store(static_cast<uint8_t>(Effect::NONE));
     this->led_event_.store(LED_EVENT_END);
@@ -1119,6 +1152,7 @@ void ElekstubeIps::begin_animation_(int64_t now_ms) {
   this->scene_frames_drawn_ = 0;
   this->scene_slowest_us_ = 0;
   this->finish_at_loop_end_ = false;
+  this->led_track_active_.store(false);
   this->led_color_.store((request.color.r << 16) | (request.color.g << 8) | request.color.b);
   // Replacing an animation that changed the LEDs with one that does not must still give them back.
   this->led_event_.store(request.control_leds ? LED_EVENT_START : LED_EVENT_END);
@@ -1133,7 +1167,8 @@ bool ElekstubeIps::start_clip_(const char *name, uint32_t duration_ms, int64_t n
     return false;
   }
   const ClipInfo info = this->store_.info(request.clip_index);
-  request.control_leds = false;
+  request.control_leds = info.leds;
+  request.color = {0, 0, 0};
   request.duration_ms = duration_ms != 0 ? duration_ms : info.frames * 1000 / info.fps;
   this->active_request_ = request;
   this->begin_animation_(now_ms);

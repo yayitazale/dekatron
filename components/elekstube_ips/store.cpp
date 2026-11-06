@@ -44,7 +44,7 @@ struct __attribute__((packed)) Entry {
   uint8_t images_per_frame;
   uint8_t kind;
   uint16_t scene_blobs;
-  uint16_t reserved;
+  uint16_t flags;  // bit 0: the scene has a track of lights
 };
 static_assert(sizeof(Entry) == 32, "the entries of the store are 32 bytes");
 
@@ -55,7 +55,7 @@ struct __attribute__((packed)) ImageEntry {
 
 static uint64_t table_length(const Entry &entry) {
   if (entry.images_per_frame == SCENE_IMAGES) {
-    return 1 + static_cast<uint64_t>(entry.frames) + entry.scene_blobs;
+    return 1 + static_cast<uint64_t>(entry.frames) + entry.scene_blobs + (entry.flags & 1);
   }
   return static_cast<uint64_t>(entry.frames) * entry.images_per_frame;
 }
@@ -84,6 +84,11 @@ static bool scene_is_valid(const uint8_t *base, const Entry &entry) {
         return false;
       }
     }
+  }
+  if (entry.flags & 1) {
+    memcpy(&location, base + entry.table_offset + (1 + static_cast<uint64_t>(entry.frames) + entry.scene_blobs) * sizeof(ImageEntry),
+           sizeof(location));
+    return location.size == entry.frames * LED_FRAME_BYTES;
   }
   return true;
 }
@@ -232,7 +237,7 @@ bool Store::theme_name(char *buffer) const {
 
 ClipInfo Store::info(uint8_t entry) const {
   const Entry data = read_entry(this->base_, entry);
-  return {data.frames, data.fps, data.images_per_frame, data.scene_blobs};
+  return {data.frames, data.fps, data.images_per_frame, data.scene_blobs, (data.flags & 1) != 0};
 }
 
 void Store::image(uint8_t entry, uint32_t frame, uint8_t image, const uint8_t **data, uint32_t *size) const {

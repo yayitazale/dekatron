@@ -19,6 +19,8 @@ namespace elekstube_ips {
 // Its table holds the palette, then one record per frame, then the pixel blobs.
 static constexpr uint8_t SCENE_IMAGES = 0;
 static constexpr uint32_t SCENE_PALETTE_BYTES = 512;
+// A track of lights has the six LEDs, three bytes each, for every frame. It is the last image of the table.
+static constexpr uint32_t LED_FRAME_BYTES = 18;
 // A clock face is ten JPEG images, one per digit.
 static constexpr uint8_t FACE_IMAGES = 10;
 
@@ -33,6 +35,7 @@ struct ClipInfo {
   uint16_t fps;
   uint8_t images_per_frame;  // SCENE_IMAGES for a scene
   uint16_t scene_blobs;
+  bool leds;  // a scene with a track of colors for the six LEDs, one per tube
 };
 
 struct __attribute__((packed)) ScenePatch {

@@ -82,6 +82,37 @@ class EncodeSceneTest(unittest.TestCase):
         red_columns = [x for x in range(make_clips.WIDTH) if tubes[5][70 * make_clips.WIDTH + x]]
         self.assertEqual((min(red_columns), max(red_columns)), (90, 130))
 
+    def test_lights_follow_what_moves_over_the_background(self):
+        # A box that crosses tube 5 (the leftmost) and then tube 4, over a still floor.
+        floor = Image.new("RGB", (make_clips.CANVAS_WIDTH, make_clips.HEIGHT))
+        ImageDraw.Draw(floor).rectangle([0, 200, make_clips.CANVAS_WIDTH, 239], fill=(60, 60, 60))
+        frames = []
+        for left in (10, 70, make_clips.TUBE_PITCH + 10, make_clips.TUBE_PITCH + 70):
+            frame = floor.copy()
+            ImageDraw.Draw(frame).rectangle([left, 50, left + 40, 130], fill=(255, 0, 0))
+            frames.append(frame)
+        track = make_scenes.led_track(frames, floor, smoothing=1.0)
+        self.assertEqual(len(track), len(frames) * make_clips.LED_BYTES)
+        led = lambda frame, tube: track[frame * make_clips.LED_BYTES + tube * 3 : frame * make_clips.LED_BYTES + tube * 3 + 3]
+        # The LED of a tube has its number, and tube 5 is the leftmost one.
+        self.assertGreater(led(0, 5)[0], 100)
+        self.assertGreater(led(0, 5)[0], 4 * max(led(0, 4)[0], 1))
+        self.assertLess(led(0, 5)[1], 30)  # red, with only the little that the floor adds
+        self.assertGreater(led(3, 4)[0], 100)
+        self.assertGreater(led(3, 4)[0], 4 * max(led(3, 5)[0], 1))
+
+    def test_a_scene_keeps_its_lights_in_a_library(self):
+        scene = make_scenes.encode_scene([canvas_with_box(20), canvas_with_box(50)])
+        self.assertEqual(len(scene.leds), 2 * make_clips.LED_BYTES)
+        library = make_clips.build_library([("scene", 15, scene)])
+        _, _, frames, _, per_frame, _, blobs, flags = make_clips.ENTRY.unpack_from(library, make_clips.HEADER.size)
+        self.assertEqual((frames, per_frame, flags & 1), (2, 0, 1))
+        table = make_clips.ENTRY.unpack_from(library, make_clips.HEADER.size)[1]
+        last = make_clips.IMAGE_ENTRY.unpack_from(library, table + (1 + frames + blobs) * make_clips.IMAGE_ENTRY.size)
+        self.assertEqual(library[last[0] : last[0] + last[1]], scene.leds)
+        with self.assertRaises(ValueError):
+            make_clips.build_library([("scene", 15, make_clips.Scene(scene.palette, scene.records, scene.blobs, b"short"))])
+
     def test_scene_fits_in_a_library(self):
         scene = make_scenes.encode_scene([canvas_with_box(20)])
         library = make_clips.build_library([("scene", 15, scene), ("plain", 15, [[b"a"]])])

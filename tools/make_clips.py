@@ -58,6 +58,10 @@ class Scene:
     palette: bytes
     records: list
     blobs: list
+    leds: bytes = b""  # six colors of three bytes for each frame, or nothing for a scene without lights
+
+
+LED_BYTES = 18  # per frame: the six LEDs, one per tube, three bytes each
 
 
 def read_frames(path, fps):
@@ -165,8 +169,10 @@ def build_library(clips, faces=(), theme=None):
         if isinstance(frames, Scene):
             if not frames.records or not 1 <= fps <= 60 or len(frames.palette) != 512 or len(frames.blobs) > 0xFFFF:
                 raise ValueError(f"{name}: invalid scene")
+            if frames.leds and len(frames.leds) != len(frames.records) * LED_BYTES:
+                raise ValueError(f"{name}: the lights need {LED_BYTES} bytes for each frame")
             tables.append(position)
-            position += (1 + len(frames.records) + len(frames.blobs)) * IMAGE_ENTRY.size
+            position += (1 + len(frames.records) + len(frames.blobs) + bool(frames.leds)) * IMAGE_ENTRY.size
             continue
         if not frames or not 1 <= fps <= 60:
             raise ValueError(f"{name}: invalid frames or fps")
@@ -191,9 +197,9 @@ def build_library(clips, faces=(), theme=None):
     for (kind, name, fps, frames), table in zip(items, tables):
         encoded_name = name.encode("utf-8")
         if isinstance(frames, Scene):
-            for image in (frames.palette, *frames.records, *frames.blobs):
+            for image in (frames.palette, *frames.records, *frames.blobs, *([frames.leds] if frames.leds else [])):
                 add_image(image)
-            entries.append(ENTRY.pack(encoded_name, table, len(frames.records), fps, 0, kind, len(frames.blobs), 0))
+            entries.append(ENTRY.pack(encoded_name, table, len(frames.records), fps, 0, kind, len(frames.blobs), 1 if frames.leds else 0))
             continue
         for frame in frames:
             for image in frame:

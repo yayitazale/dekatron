@@ -16,7 +16,7 @@ import struct
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from make_clips import CANVAS_WIDTH, HEIGHT, REGION_BYTES, TUBE_COUNT, TUBE_PITCH, WIDTH, Scene, build_library
 
@@ -153,7 +153,48 @@ def build_palette(scenes, colors=255):
     return entries + [(0, 0, 0)] * (256 - len(entries))
 
 
-def encode_scene(canvases, entries=None):
+def region_light(image):
+    """The color that a region of a picture asks of a light: the mean color of what is lit, as strong as
+    the region is full of it, and dimmer when that is dark."""
+    mean = image.resize((1, 1), Image.BOX).getpixel((0, 0))
+    lit = image.convert("L").point(lambda value: 255 if value > 20 else 0).resize((1, 1), Image.BOX).getpixel((0, 0)) / 255
+    if lit < 0.002:
+        return (0.0, 0.0, 0.0)
+    lit_color = [min(255.0, channel / lit) for channel in mean]
+    peak = max(lit_color) or 1.0
+    strength = min(1.0, math.sqrt(lit) * 2.2) * (0.4 + 0.6 * peak / 255)
+    return tuple(channel * 255 / peak * strength for channel in lit_color)
+
+
+def led_track(canvases, background=None, ambient=0.12, smoothing=0.55):
+    """One color per LED for each frame, from the picture of its tube.
+
+    With a background, which is what stays still in the scene, the lights follow what moves over it,
+    and the background itself only adds a little. Without one they follow the whole picture. The LED of a
+    tube has the number of the tube: the pictures run from the leftmost tube, which is tube 5.
+    """
+    track = bytearray()
+    previous = [(0.0, 0.0, 0.0)] * TUBE_COUNT
+    for canvas in canvases:
+        tubes = []
+        for tube in range(TUBE_COUNT):
+            left = (TUBE_COUNT - 1 - tube) * TUBE_PITCH
+            box = (left, 0, left + WIDTH, HEIGHT)
+            crop = canvas.crop(box)
+            if background is None:
+                color = region_light(crop)
+            else:
+                moving = region_light(ImageChops.difference(crop, background.crop(box)))
+                still = region_light(crop)
+                color = tuple(min(255.0, m + ambient * s) for m, s in zip(moving, still))
+            tubes.append(tuple(smoothing * now + (1 - smoothing) * before for now, before in zip(color, previous[tube])))
+        previous = tubes
+        for color in tubes:
+            track += bytes(round(channel) for channel in color)
+    return bytes(track)
+
+
+def encode_scene(canvases, entries=None, background=None, lights=True):
     """Encodes canvases of CANVAS_WIDTH x HEIGHT, which start from black tubes."""
     entries = entries or build_palette([canvases])
     reference = Image.new("P", (1, 1))
@@ -186,7 +227,7 @@ def encode_scene(canvases, entries=None):
                     count += 1
             shown[image_index] = current
         records.append(struct.pack("<H", count) + bytes(patches))
-    return Scene(palette, records, list(blobs))
+    return Scene(palette, records, list(blobs), led_track(canvases, background) if lights else b"")
 
 
 def new_canvas():
@@ -537,6 +578,15 @@ def launch_scene(fps=15):
     return fps, frames
 
 
+def draw_launch_ground():
+    """The pads of the launch scene, which are all that stays still in it."""
+    canvas = Image.new("RGB", (CANVAS_WIDTH, HEIGHT))
+    draw = ImageDraw.Draw(canvas)
+    for tube in (2, 3):
+        draw.rectangle([tube * TUBE_PITCH, 210, tube * TUBE_PITCH + WIDTH, HEIGHT], fill=(44, 44, 42))
+    return canvas
+
+
 THEME = ("Space", {
     "author": "Dekatron",
     "license": "MIT",
@@ -553,13 +603,16 @@ def main():
     makers = [("boot", boot_scene), ("connecting", orbit_scene), ("online", landing_scene), ("countdown_end", launch_scene)]
     made = [(name, *maker()) for name, maker in makers]
     entries = build_palette([canvases for _, _, canvases in made])
+    # What stays still in a scene, so that the lights follow what moves over it.
+    backgrounds = {"connecting": draw_moon(), "online": draw_moon(), "countdown_end": draw_launch_ground(),
+                   "boot": made[0][2][0]}  # the ship and the stars are the first picture, before anything moves
     clips = []
     for name, fps, canvases in made:
-        scene = encode_scene(canvases, entries)
+        scene = encode_scene(canvases, entries, backgrounds.get(name))
         size = len(scene.palette) + sum(map(len, scene.records)) + sum(map(len, scene.blobs))
         patches = sum(struct.unpack_from("<H", record)[0] for record in scene.records)
         pixels = sum(1 for _ in scene.blobs)
-        print(f"{name}: {len(canvases)} frames at {fps} fps, {size} bytes, {patches} patches, {pixels} unique blobs")
+        print(f"{name}: {len(canvases)} frames at {fps} fps, {size} bytes, {patches} patches, {pixels} unique blobs, lights {len(scene.leds)} bytes")
         clips.append((name, fps, scene))
         if args.preview:
             args.preview.mkdir(parents=True, exist_ok=True)

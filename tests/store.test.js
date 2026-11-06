@@ -70,6 +70,21 @@ sys.stdout.buffer.write(lib)`;
   assert.deepStrictEqual(made.map((entry) => entry.name), ["Cats", "boot"]);
 });
 
+test("keeps the lights of a scene through a rebuild", () => {
+  const script = `
+import sys
+sys.path.insert(0, "tools")
+import make_clips as c
+scene = c.Scene(bytes(512), [bytes(2), bytes(2)], [], bytes(range(36)))
+sys.stdout.buffer.write(c.build_library([("scene", 15, scene)]))`;
+  const original = new Uint8Array(execFileSync(python, ["-I", "-c", script], { cwd: root, maxBuffer: 1 << 24 }));
+  const { entries } = store.parse(original);
+  assert.strictEqual(entries[0].reserved & 1, 1);
+  assert.strictEqual(entries[0].images.length, 1 + 2 + 0 + 1);
+  assert.deepStrictEqual(Array.from(entries[0].images[3]), Array.from({ length: 36 }, (_, i) => i));
+  assert.strictEqual(Buffer.compare(Buffer.from(original), Buffer.from(store.build(entries))), 0);
+});
+
 test("limits the faces and the themes", () => {
   const digits = Array.from({ length: 10 }, () => new Uint8Array([1]));
   const faces = (count) => Array.from({ length: count }, (_, i) => store.face(`Face${i}`, digits));
