@@ -1,0 +1,63 @@
+name: CI
+
+# Pull requests and merges to main. Nothing is published here: only a tag
+# publishes (see CONTRIBUTING.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # A release's `git push --follow-tags` pushes main and the tag at once. The
+  # tag run is the one that matters, so the main one is skipped. It is
+  # recognised by the commit title, which scripts/release.py always writes.
+  test:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release)') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pip install pillow
+      # The tests also fail when web_index.h or site/creator/index.html are
+      # out of date with web/ and site/.
+      - run: python -m unittest discover -s tests
+      - run: node --test "tests/*.test.js"
+
+  # Blocking too: the firmware has to build, and the app has to leave room in
+  # its partition (1,441,792 bytes) for what comes next.
+  firmware:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release)') }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [clock, full]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install esphome==2026.10.2
+      - run: cp firmware/secrets.example.yaml firmware/secrets.yaml
+      - name: Compile
+        working-directory: firmware
+        run: esphome compile ${{ matrix.profile }}.yaml 2>&1 | tee build.log
+      - name: Check the size of the app
+        working-directory: firmware
+        run: |
+          used=$(grep -oE 'Flash: .*used ([0-9]+) bytes' build.log | grep -oE '[0-9]+ bytes' | head -1 | cut -d' ' -f1)
+          echo "App: ${used} bytes of 1441792"
+          test -n "$used"
+          # At least 100 KB free for the page and what comes next.
+          test "$used" -le 1339392
