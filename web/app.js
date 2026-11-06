@@ -482,7 +482,23 @@
         h("div", {}, h("div", { class: "big" }, entry ? entry.name : "No theme"), h("div", { class: "muted" }, details)),
         h("button", { class: "btn primary", onclick: () => fileInput.click() }, "Change theme"), fileInput),
       info.description ? h("p", { class: "muted", style: "margin:10px 0 14px" }, info.description) : "",
-      h("div", {}, rows));
+      h("div", {}, rows),
+      entry ? h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn", onclick: downloadTheme }, "Download theme file")) : "");
+  }
+
+  // The theme of the working copy as a file of its own, which Change theme can take.
+  function downloadTheme() {
+    try {
+      const clips = ROLES.map(([name]) => app.working.entries.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
+      if (!themeEntry() || clips.includes(undefined)) throw new Error("The theme is not complete");
+      const bytes = Store.build([themeEntry(), ...clips]);
+      const link = h("a", { href: URL.createObjectURL(new Blob([bytes])), download: `${themeEntry().name}.bin` });
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      toast(error.message, true);
+    }
   }
 
   function imageToJpeg(file) {

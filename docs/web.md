@@ -43,3 +43,11 @@ python tools/check_api.py elekstube.local store.bin  # the API, against a real c
 ```
 
 `web/store.js` writes the same bytes as `tools/make_clips.py`, and a test compares them.
+
+## Creating a theme
+
+Themes are made on a page of their own, `site/creator/index.html`, which is meant for the static site of the project (GitHub Pages) and also works from a file. A page served over HTTPS cannot send anything to the clock, which speaks plain HTTP, and the clock has no need to carry the tool, so the page makes a theme file and nothing else: you download it, and on the page of the clock press **Change theme** in the Style tab, then **Apply**.
+
+For each of the four animations the creator takes an animated GIF, WebP or PNG, a video, or a numbered series of images. It fits each picture to the strip that crosses the six tubes (1370 × 240), chooses one palette of 255 colors for all four, stores only what changes between frames, and can give each tube's light the color of its picture. Nothing leaves the computer.
+
+`python tools/build_site.py` builds the page from `site/creator.template.html`, `site/creator-page.js` and the libraries `web/store.js`, `site/scene.js` and `site/creator.js`. The encoder in `site/scene.js` is tested byte for byte against `tools/make_scenes.py` in `tests/scene.test.js`. The Theme card of the clock's page has **Download theme file** to share the theme of the clock.

@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Dekatron theme creator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='3' width='14' height='26' rx='3' fill='%23ffb020'/%3E%3C/svg%3E">
+<style>:root{--paper:#f4f1eb;--surface:#fff;--raised:#faf8f4;--ink:#1d1c1a;--ink2:#4a4741;--muted:#8d887e;--line:#e6e1d7;--accent:#e2725b;--soft:#fbe7e1;--on-accent:#fff;--leaf:#6f9a76;--leaf-soft:#e4efe5;--bad:#c9503f;--shadow:0 1px 2px rgb(0 0 0 / .04),0 10px 24px -14px rgb(0 0 0 / .16);font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}:root[data-theme=dark]{--paper:#141311;--surface:#1e1d1a;--raised:#252420;--ink:#f3efe7;--ink2:#cfc9bd;--muted:#8f897d;--line:#34322d;--accent:#ec8a74;--soft:#3a2621;--on-accent:#1d1c1a;--leaf:#8fbc96;--leaf-soft:#213026;--bad:#f0907f;--shadow:0 1px 2px rgb(0 0 0 / .3),0 12px 28px -14px rgb(0 0 0 / .6);color-scheme:dark;}*{box-sizing:border-box;}body{margin:0;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;}#app{max-width:620px;margin:0 auto;padding:0 16px 104px;}button,input,select{font:inherit;color:inherit;}button{cursor:pointer;}header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 2px 14px;}.brand{font-size:21px;font-weight:750;letter-spacing:.2px;}.brand b{color:var(--accent);font-weight:750;}.head{display:flex;align-items:center;gap:8px;min-width:0;}.pill{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--leaf-soft);color:var(--leaf);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;}.pill.off{background:var(--raised);color:var(--muted);}.mode{border:0;background:var(--surface);border-radius:12px;width:32px;height:32px;box-shadow:var(--shadow);color:var(--ink2);display:grid;place-items:center;flex:none;}.card{background:var(--surface);border-radius:22px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow);}h2{margin:0 0 14px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}h2 span{text-transform:none;letter-spacing:0;font-weight:500;}p{margin:0;}.muted{color:var(--muted);font-size:13px;}.row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;}.row + .row,.row + p,p + .row,.row + .digits,p + .digits{margin-top:12px;}.grow{flex:1 1 120px;min-width:0;}.btn{border:1px solid var(--line);background:var(--raised);border-radius:12px;padding:9px 14px;}.btn:hover{border-color:var(--muted);}.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:650;}.btn.danger{color:var(--bad);}.chip{border:1px solid transparent;background:var(--raised);color:var(--ink2);border-radius:12px;padding:8px 14px;}.chip.on{background:var(--soft);color:var(--accent);border-color:var(--accent);}.chips{display:flex;flex-wrap:wrap;gap:8px;}input[type=text],input[type=password],input[type=number],select{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:9px 12px;min-width:0;}input[type=number]{width:84px;}input[type=color]{width:44px;height:38px;padding:3px;background:var(--raised);border:1px solid var(--line);border-radius:12px;}input[type=range]{accent-color:var(--accent);flex:1 1 100px;min-width:0;}.slots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}.slot{position:relative;width:100%;aspect-ratio:9 / 14;border-radius:14px;background:#050505;border:2px solid transparent;padding:0;overflow:hidden;display:grid;place-items:center;font-weight:750;font-size:clamp(16px,5.5vw,26px);}.slot.on{border-color:var(--accent);}.slot.empty{background:var(--raised);border:2px dashed var(--line);color:var(--muted);font-weight:400;}.slot.pending{opacity:.55;}.slot img{width:100%;height:100%;object-fit:cover;display:block;}.cell{position:relative;}.cell .x{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgb(0 0 0 / .6);color:#fff;font-size:14px;line-height:1;padding:0;}.names{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:6px;}.names span{font-size:11px;color:var(--muted);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.item{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);}.item:first-of-type{border-top:0;padding-top:0;}.item .grow{flex:1 1 0;}.item .name{font-weight:650;}.round{width:38px;height:38px;border-radius:12px;border:0;background:var(--soft);color:var(--accent);display:grid;place-items:center;flex:none;}.digits{display:flex;gap:4px;background:#050505;padding:8px;border-radius:12px;justify-content:center;}.digits canvas{display:block;border-radius:2px;flex:0 1 auto;min-width:0;max-width:100%;height:auto;}.digits.tubes{gap:8px;}.bar{position:sticky;top:8px;z-index:3;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:10px 14px;margin-bottom:14px;box-shadow:var(--shadow);}nav{position:fixed;left:0;right:0;bottom:0;z-index:4;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -10px 24px -14px rgb(0 0 0 / .28);padding:8px 12px calc(8px + env(safe-area-inset-bottom));}nav div{max-width:620px;margin:0 auto;display:flex;gap:6px;}nav button{flex:1;border:0;background:none;color:var(--muted);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;}nav button.on{background:var(--soft);color:var(--accent);font-weight:650;}svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}.count{font-size:30px;font-weight:750;letter-spacing:.5px;}progress{width:100%;height:10px;accent-color:var(--accent);}.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;max-width:90vw;z-index:6;}.toast.bad{background:var(--bad);color:#fff;}dialog{background:var(--surface);color:var(--ink);border:0;border-radius:22px;padding:22px;width:min(380px,92vw);box-shadow:var(--shadow);}dialog::backdrop{background:rgb(0 0 0 / .5);}dialog h3{margin:0 0 12px;}code{background:var(--raised);padding:1px 6px;border-radius:6px;font-size:13px;}.between{justify-content:space-between;flex-wrap:nowrap;}.big{font-size:17px;font-weight:700;}.between .btn{flex:none;}.sw{width:48px;height:28px;border-radius:999px;border:0;background:var(--line);position:relative;flex:none;padding:0;transition:background .15s;}.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgb(0 0 0 / .3);}.sw.on{background:var(--accent);}.sw.on::after{left:23px;}.swatch{width:32px;height:32px;border-radius:10px;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line);padding:0;flex:none;}.swatch.on{box-shadow:0 0 0 2px var(--accent);}.slider{flex-wrap:nowrap;}.slider .muted{width:74px;flex:none;}.slider .value{width:42px;text-align:right;font-size:13px;color:var(--muted);flex:none;}.card .row.between + .row,.card .row.between + .slider{margin-top:14px;}input[type=color]{width:32px;height:32px;padding:0;border:3px solid var(--surface);border-radius:10px;box-shadow:0 0 0 1px var(--line);flex:none;background:none;}input[type=color]::-webkit-color-swatch-wrapper{padding:0;}input[type=color]::-webkit-color-swatch{border:0;border-radius:6px;}input[type=color]::-moz-color-swatch{border:0;border-radius:6px;}input[type=range]{-webkit-appearance:none;appearance:none;height:28px;background:transparent;}input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--line);}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line);}input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line);}input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);}.card .row.between + .row.between,.card .row.between + div{margin-top:14px;}.tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:8px;background:var(--accent-soft,#fbe5de);color:var(--accent);font-size:12px;}</style>
+</head>
+<body>
+<div id="app"></div>
+<script>// The store of the clock, as tools/make_clips.py writes it and components/elekstube_ips/store.cpp reads it.
+// Everything is little endian: a header, one entry per face or clip, the tables of images, and the images.
+const DekatronStore = (() => {
+  const MAGIC = [0x45, 0x4b, 0x53, 0x54]; // EKST
+  const VERSION = 2;
+  const HEADER_BYTES = 20;
+  const ENTRY_BYTES = 32;
+  const NAME_BYTES = 16;
+  const TABLE_ENTRY_BYTES = 8;
+  const KIND_CLIP = 0;
+  const KIND_FACE = 1;
+  const KIND_THEME = 2;
+  const MAX_FACES = 4; // besides the one built into the firmware
+  const FACE_IMAGES = 10;
+  const SCENE = 0; // images per frame of a scene
+
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes, start = 0, end = bytes.length) {
+    let crc = 0xffffffff;
+    for (let i = start; i < end; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function tableLength(entry) {
+    return entry.imagesPerFrame === SCENE ? 1 + entry.frames + entry.sceneBlobs + (entry.reserved & 1) : entry.frames * entry.imagesPerFrame;
+  }
+
+  // Reads a store. Throws an Error that says what is wrong, after checking it like the clock does.
+  function parse(buffer) {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    if (bytes.length < HEADER_BYTES) throw new Error("too short");
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (!MAGIC.every((value, i) => bytes[i] === value)) throw new Error("not a store");
+    if (view.getUint32(4, true) !== VERSION) throw new Error("another version of the format");
+    const total = view.getUint32(8, true);
+    const count = view.getUint32(16, true);
+    if (total !== bytes.length) throw new Error(`the header says ${total} bytes and the file has ${bytes.length}`);
+    if (crc32(bytes, HEADER_BYTES, total) !== view.getUint32(12, true)) throw new Error("damaged: the checksum does not match");
+    if (count < 1 || count > 255 || HEADER_BYTES + count * ENTRY_BYTES > total) throw new Error("malformed");
+
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+      const at = HEADER_BYTES + i * ENTRY_BYTES;
+      let end = 0;
+      while (end < NAME_BYTES && bytes[at + end] !== 0) end++;
+      const entry = {
+        name: new TextDecoder().decode(bytes.subarray(at, at + end)),
+        frames: view.getUint32(at + 20, true),
+        fps: view.getUint16(at + 24, true),
+        imagesPerFrame: bytes[at + 26],
+        kind: bytes[at + 27],
+        sceneBlobs: view.getUint16(at + 28, true),
+        reserved: view.getUint16(at + 30, true), // bit 0: a scene has a track of lights, which is its last image
+        images: [],
+      };
+      const table = view.getUint32(at + 16, true);
+      const length = tableLength(entry);
+      if (table + length * TABLE_ENTRY_BYTES > total) throw new Error(`${entry.name}: malformed`);
+      for (let j = 0; j < length; j++) {
+        const offset = view.getUint32(table + j * TABLE_ENTRY_BYTES, true);
+        const size = view.getUint32(table + j * TABLE_ENTRY_BYTES + 4, true);
+        if (offset + size > total) throw new Error(`${entry.name}: malformed`);
+        entry.images.push(bytes.subarray(offset, offset + size));
+      }
+      entries.push(entry);
+    }
+    return { entries, size: total };
+  }
+
+  function sameBytes(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  // Writes a store from entries like the ones parse() gives. Identical images are kept once.
+  // `capacity` is the most it may take.
+  function build(entries, capacity = Infinity) {
+    if (!entries.length) throw new Error("nothing to store");
+    if (entries.length > 255) throw new Error("at most 255 faces and clips");
+    if (entries.filter((entry) => entry.kind === KIND_FACE).length > MAX_FACES) throw new Error(`a store holds at most ${MAX_FACES} faces`);
+    if (entries.filter((entry) => entry.kind === KIND_THEME).length > 1) throw new Error("a store holds one theme");
+    for (const [index, entry] of entries.entries()) {
+      const encoded = new TextEncoder().encode(entry.name);
+      if (encoded.length < 1 || encoded.length >= NAME_BYTES) throw new Error(`invalid name: ${entry.name}`);
+      if (entries.some((other, j) => j !== index && other.kind === entry.kind && other.name === entry.name)) {
+        throw new Error(`the name ${entry.name} is used twice`);
+      }
+      if (entry.images.length !== tableLength(entry)) throw new Error(`${entry.name}: wrong number of images`);
+    }
+
+    let position = HEADER_BYTES + ENTRY_BYTES * entries.length;
+    const tables = [];
+    for (const entry of entries) {
+      tables.push(position);
+      position += tableLength(entry) * TABLE_ENTRY_BYTES;
+    }
+    const payloadStart = position;
+
+    // Images with the same bytes share one place, found through a cheap hash that is then checked.
+    const places = new Map();
+    const placed = [];
+    let payloadSize = 0;
+    const locate = (image) => {
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < image.length; i++) hash = Math.imul(hash ^ image[i], 0x01000193) >>> 0;
+      const key = `${hash}:${image.length}`;
+      const candidates = places.get(key) || [];
+      for (const candidate of candidates) if (sameBytes(candidate.image, image)) return candidate.offset;
+      const offset = payloadStart + payloadSize;
+      payloadSize += image.length;
+      candidates.push({ image, offset });
+      places.set(key, candidates);
+      placed.push({ image, offset });
+      return offset;
+    };
+    const offsets = entries.map((entry) => entry.images.map(locate));
+
+    const total = payloadStart + payloadSize;
+    if (total > capacity) throw new Error(`it takes ${total} bytes and the clock has room for ${capacity}`);
+    const out = new Uint8Array(total);
+    const view = new DataView(out.buffer);
+    out.set(MAGIC, 0);
+    view.setUint32(4, VERSION, true);
+    view.setUint32(8, total, true);
+    view.setUint32(16, entries.length, true);
+    entries.forEach((entry, i) => {
+      const at = HEADER_BYTES + i * ENTRY_BYTES;
+      out.set(new TextEncoder().encode(entry.name), at);
+      view.setUint32(at + 16, tables[i], true);
+      view.setUint32(at + 20, entry.frames, true);
+      view.setUint16(at + 24, entry.fps, true);
+      out[at + 26] = entry.imagesPerFrame;
+      out[at + 27] = entry.kind;
+      view.setUint16(at + 28, entry.sceneBlobs, true);
+      view.setUint16(at + 30, entry.reserved || 0, true);
+      entry.images.forEach((image, j) => {
+        view.setUint32(tables[i] + j * TABLE_ENTRY_BYTES, offsets[i][j], true);
+        view.setUint32(tables[i] + j * TABLE_ENTRY_BYTES + 4, image.length, true);
+      });
+    });
+    for (const { image, offset } of placed) out.set(image, offset);
+    view.setUint32(12, crc32(out, HEADER_BYTES, total), true);
+    return out;
+  }
+
+  // A clock face is ten images, one per digit, stored like a clip with one frame.
+  function face(name, digitImages) {
+    if (digitImages.length !== FACE_IMAGES) throw new Error("a face needs ten images");
+    return { name, kind: KIND_FACE, frames: 1, fps: 1, imagesPerFrame: FACE_IMAGES, sceneBlobs: 0, images: digitImages };
+  }
+
+  // A theme is its name and a little data, such as its author and license, kept as JSON in its one image.
+  function theme(name, info) {
+    const bytes = new TextEncoder().encode(JSON.stringify(info));
+    if (bytes.length > 512) throw new Error("the data of a theme is too long");
+    return { name, kind: KIND_THEME, frames: 1, fps: 1, imagesPerFrame: 1, sceneBlobs: 0, images: [bytes] };
+  }
+
+  function themeInfo(entry) {
+    try {
+      return JSON.parse(new TextDecoder().decode(entry.images[0]));
+    } catch (error) {
+      return {};
+    }
+  }
+
+  const api = { parse, build, face, theme, themeInfo, crc32, KIND_CLIP, KIND_FACE, KIND_THEME, MAX_FACES, FACE_IMAGES, SCENE, NAME_BYTES };
+  if (typeof module !== "undefined") module.exports = api;
+  return api;
+})();
+
+// Scenes for the page, the way tools/make_scenes.py makes them: an animation that crosses the six tubes,
+// stored as only the rectangles that change between frames, with a color for each light on every frame.
+// tests/scene.test.js checks this against the Python code, so the two write the same bytes.
+const DekatronScene = (() => {
+  const WIDTH = 135;
+  const HEIGHT = 240;
+  const TUBE_COUNT = 6;
+  const TUBE_PITCH = WIDTH + 112; // must match TUBE_GAP_PIXELS in animation.h
+  const CANVAS_WIDTH = (TUBE_COUNT - 1) * TUBE_PITCH + WIDTH;
+  const TILE = 8;
+
+  // Token below 128: repeat the next byte token + 1 times. Otherwise token - 127 literal bytes.
+  function rle(indices) {
+    const output = [];
+    const literal = [];
+    const flush = () => {
+      if (literal.length) {
+        output.push(127 + literal.length, ...literal);
+        literal.length = 0;
+      }
+    };
+    let position = 0;
+    const length = indices.length;
+    while (position < length) {
+      const value = indices[position];
+      let run = 1;
+      while (position + run < length && run < 128 && indices[position + run] === value) run++;
+      if (run >= 3) {
+        flush();
+        output.push(run - 1, value);
+        position += run;
+      } else {
+        literal.push(value);
+        position++;
+        if (literal.length === 128) flush();
+      }
+    }
+    flush();
+    return Uint8Array.from(output);
+  }
+
+  const sameRange = (a, b, from, to) => {
+    for (let i = from; i < to; i++) if (a[i] !== b[i]) return false;
+    return true;
+  };
+
+  // Rectangles [x, y, width, height] that cover the changes between two tube images.
+  function dirtyRectangles(before, after) {
+    const out = [];
+    let spans = new Map();
+    const key = (start, end) => `${start},${end}`;
+    const emit = (map, bottom) => {
+      for (const [k, top] of map) {
+        const [start, end] = k.split(",").map(Number);
+        out.push([start * TILE, top, Math.min(end * TILE, WIDTH) - start * TILE, bottom - top]);
+      }
+    };
+    for (let tileRow = 0; tileRow < HEIGHT; tileRow += TILE) {
+      const rowBottom = Math.min(tileRow + TILE, HEIGHT);
+      const dirty = [];
+      for (let tileColumn = 0; tileColumn < WIDTH; tileColumn += TILE) {
+        const width = Math.min(TILE, WIDTH - tileColumn);
+        let changed = false;
+        for (let y = tileRow; y < rowBottom && !changed; y++) {
+          changed = !sameRange(before, after, y * WIDTH + tileColumn, y * WIDTH + tileColumn + width) ? true : false;
+        }
+        dirty.push(changed);
+      }
+      let column = 0;
+      const current = new Map();
+      while (column < dirty.length) {
+        if (!dirty[column]) {
+          column++;
+          continue;
+        }
+        const start = column;
+        while (column < dirty.length && dirty[column]) column++;
+        const k = key(start, column);
+        const top = spans.has(k) ? spans.get(k) : tileRow;
+        spans.delete(k);
+        current.set(k, top);
+      }
+      emit(spans, tileRow);
+      spans = current;
+    }
+    emit(spans, HEIGHT);
+    return out;
+  }
+
+  // Joins rectangles that touch, so one shape is always cut the same way.
+  function mergeTouching(rectangles) {
+    const merged = rectangles.map((rectangle) => rectangle.slice());
+    let changed = true;
+    while (changed) {
+      changed = false;
+      outer: for (let first = 0; first < merged.length; first++) {
+        for (let second = first + 1; second < merged.length; second++) {
+          const [ax, ay, aw, ah] = merged[first];
+          const [bx, by, bw, bh] = merged[second];
+          if (ax <= bx + bw && bx <= ax + aw && ay <= by + bh && by <= ay + ah) {
+            const left = Math.min(ax, bx);
+            const top = Math.min(ay, by);
+            merged[first] = [left, top, Math.max(ax + aw, bx + bw) - left, Math.max(ay + ah, by + bh) - top];
+            merged.splice(second, 1);
+            changed = true;
+            break outer;
+          }
+        }
+      }
+    }
+    return merged;
+  }
+
+  // Splits a changed rectangle into the tight box of what is lit and the black around it, so a shape on
+  // black gives the same pixels wherever it is, and its frames can be shared.
+  function splitForeground(before, after, x, y, width, height) {
+    const out = [];
+    const lit = [];
+    const first = new Map();
+    const last = new Map();
+    for (let row = 0; row < height; row++) {
+      const start = (y + row) * WIDTH + x;
+      let left = -1;
+      let right = -1;
+      for (let i = 0; i < width; i++) {
+        if (after[start + i] !== 0) {
+          if (left < 0) left = i;
+          right = i + 1;
+        }
+      }
+      if (left >= 0) {
+        lit.push(row);
+        first.set(row, left);
+        last.set(row, right);
+      }
+    }
+    if (!lit.length) return [[x, y, width, height]];
+    const top = lit[0];
+    const bottom = lit[lit.length - 1] + 1;
+    const left = Math.min(...lit.map((row) => first.get(row)));
+    const right = Math.max(...lit.map((row) => last.get(row)));
+    const wasLit = (bx, by, bw, bh) => {
+      for (let row = by; row < by + bh; row++) {
+        for (let i = bx; i < bx + bw; i++) if (before[row * WIDTH + i] !== 0) return true;
+      }
+      return false;
+    };
+    const around = [
+      [x, y, width, top],
+      [x, y + bottom, width, height - bottom],
+      [x, y + top, left, bottom - top],
+      [x + right, y + top, width - right, bottom - top],
+    ];
+    for (const box of around) if (box[2] > 0 && box[3] > 0 && wasLit(...box)) out.push(box);
+    out.push([x + left, y + top, right - left, bottom - top]);
+    return out;
+  }
+
+  const to565 = (r, g, b) => ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+  const from565 = (value) => {
+    const r = (value >> 11) & 31;
+    const g = (value >> 5) & 63;
+    const b = value & 31;
+    return [(r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2)];
+  };
+
+  // The palette that the scenes of a theme share, found by median cut on what the tubes can show.
+  // `samples` are frames (ImageData); entry 0 is black and the rest are padded with black.
+  function buildPalette(samples, colors = 255) {
+    const counts = new Map();
+    for (const frame of samples) {
+      const data = frame.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const key = to565(data[i], data[i + 1], data[i + 2]);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    }
+    let boxes = [[...counts].map(([key, count]) => ({ rgb: from565(key), count }))];
+    while (boxes.length < colors) {
+      let best = -1;
+      let bestScore = 0;
+      let bestAxis = 0;
+      boxes.forEach((box, index) => {
+        if (box.length < 2) return;
+        for (let axis = 0; axis < 3; axis++) {
+          let low = 255;
+          let high = 0;
+          for (const color of box) {
+            low = Math.min(low, color.rgb[axis]);
+            high = Math.max(high, color.rgb[axis]);
+          }
+          const score = (high - low) * Math.sqrt(box.reduce((sum, color) => sum + color.count, 0));
+          if (score > bestScore) {
+            bestScore = score;
+            best = index;
+            bestAxis = axis;
+          }
+        }
+      });
+      if (best < 0) break;
+      const box = boxes[best].slice().sort((a, b) => a.rgb[bestAxis] - b.rgb[bestAxis]);
+      const half = box.reduce((sum, color) => sum + color.count, 0) / 2;
+      let running = 0;
+      let cut = 1;
+      for (let i = 0; i < box.length - 1; i++) {
+        running += box[i].count;
+        cut = i + 1;
+        if (running >= half) break;
+      }
+      boxes.splice(best, 1, box.slice(0, cut), box.slice(cut));
+    }
+    const found = boxes.map((box) => {
+      const total = box.reduce((sum, color) => sum + color.count, 0) || 1;
+      return [0, 1, 2].map((axis) => Math.round(box.reduce((sum, color) => sum + color.rgb[axis] * color.count, 0) / total));
+    });
+    const entries = [[0, 0, 0], ...found];
+    while (entries.length < 256) entries.push([0, 0, 0]);
+    return entries.slice(0, 256);
+  }
+
+  // Turns a frame into the index of the nearest palette color for every pixel. A color is only looked
+  // for once, as the tubes show 16 bits of color anyway.
+  function makeQuantizer(entries) {
+    const lookup = new Int16Array(65536).fill(-1);
+    const exact = new Map();
+    entries.forEach((entry, index) => {
+      const key = to565(...entry);
+      if (!exact.has(key)) exact.set(key, index);
+    });
+    const nearest = (key) => {
+      if (exact.has(key)) return exact.get(key);
+      const [r, g, b] = from565(key);
+      let best = 0;
+      let bestDistance = Infinity;
+      for (let i = 0; i < entries.length; i++) {
+        const dr = entries[i][0] - r;
+        const dg = entries[i][1] - g;
+        const db = entries[i][2] - b;
+        const distance = dr * dr + dg * dg + db * db;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = i;
+        }
+      }
+      return best;
+    };
+    // Every black entry is index 0, which is what the tubes show at the start.
+    const black = entries.map((entry) => (entry[0] === 0 && entry[1] === 0 && entry[2] === 0 ? 0 : -1));
+    return (frame) => {
+      const data = frame.data;
+      const out = new Uint8Array(data.length / 4);
+      for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        const key = to565(data[i], data[i + 1], data[i + 2]);
+        let index = lookup[key];
+        if (index < 0) {
+          index = nearest(key);
+          if (black[index] === 0) index = 0;
+          lookup[key] = index;
+        }
+        out[p] = index;
+      }
+      return out;
+    };
+  }
+
+  const paletteBytes = (entries) => {
+    const out = new Uint8Array(512);
+    entries.forEach(([r, g, b], i) => {
+      const value = to565(r, g, b);
+      out[i * 2] = value & 255;
+      out[i * 2 + 1] = value >> 8;
+    });
+    return out;
+  };
+
+  // What a region of a picture asks of a light: the mean color of what is lit, as strong as the region is
+  // full of it, and dimmer when that is dark. `sum` holds the sums of the channels, `lit` the pixels
+  // brighter than a little, and `n` the pixels.
+  function regionLight(sum, lit, n) {
+    const mean = sum.map((channel) => Math.round(channel / n));
+    const litFraction = Math.round((lit * 255) / n) / 255;
+    if (litFraction < 0.002) return [0, 0, 0];
+    const litColor = mean.map((channel) => Math.min(255, channel / litFraction));
+    const peak = Math.max(...litColor) || 1;
+    const strength = Math.min(1, Math.sqrt(litFraction) * 2.2) * (0.4 + (0.6 * peak) / 255);
+    return litColor.map((channel) => (channel * 255 * strength) / peak);
+  }
+
+  // Sums of one tube of a frame, or of its difference with another one.
+  function tubeLight(frame, tube, other) {
+    const left = (TUBE_COUNT - 1 - tube) * TUBE_PITCH;
+    const sum = [0, 0, 0];
+    let lit = 0;
+    for (let y = 0; y < HEIGHT; y++) {
+      let at = (y * CANVAS_WIDTH + left) * 4;
+      for (let x = 0; x < WIDTH; x++, at += 4) {
+        let r = frame.data[at];
+        let g = frame.data[at + 1];
+        let b = frame.data[at + 2];
+        if (other) {
+          r = Math.abs(r - other.data[at]);
+          g = Math.abs(g - other.data[at + 1]);
+          b = Math.abs(b - other.data[at + 2]);
+        }
+        sum[0] += r;
+        sum[1] += g;
+        sum[2] += b;
+        if (((19595 * r + 38470 * g + 7471 * b + 0x8000) >> 16) > 20) lit++;
+      }
+    }
+    return [sum, lit, WIDTH * HEIGHT];
+  }
+
+  // One color per LED for a frame, from the picture of its tube. The LED of a tube has the number of the
+  // tube, and the pictures run from the leftmost tube, which is tube 5. With a background (what stays still
+  // in the scene) the lights follow what moves over it, and it adds only a little.
+  // The follower takes the frames one by one and gives the colors of the six lights for each.
+  function ledFollower(background = null, ambient = 0.12, smoothing = 0.55) {
+    let previous = Array.from({ length: TUBE_COUNT }, () => [0, 0, 0]);
+    return (frame) => {
+      const out = new Uint8Array(TUBE_COUNT * 3);
+      const tubes = [];
+      for (let tube = 0; tube < TUBE_COUNT; tube++) {
+        let color;
+        if (!background) {
+          color = regionLight(...tubeLight(frame, tube));
+        } else {
+          const moving = regionLight(...tubeLight(frame, tube, background));
+          const still = regionLight(...tubeLight(frame, tube));
+          color = moving.map((value, i) => Math.min(255, value + ambient * still[i]));
+        }
+        tubes.push(color.map((now, i) => smoothing * now + (1 - smoothing) * previous[tube][i]));
+      }
+      previous = tubes;
+      tubes.forEach((color, tube) => color.forEach((channel, i) => { out[tube * 3 + i] = Math.round(channel); }));
+      return out;
+    };
+  }
+
+  function ledTrack(frames, background = null, ambient = 0.12, smoothing = 0.55) {
+    const follow = ledFollower(background, ambient, smoothing);
+    const track = new Uint8Array(frames.length * TUBE_COUNT * 3);
+    frames.forEach((frame, index) => track.set(follow(frame), index * TUBE_COUNT * 3));
+    return track;
+  }
+
+  // Encodes frames that are already indexes into the palette, each CANVAS_WIDTH x HEIGHT, from black tubes,
+  // one at a time with add(), and finish() gives the scene.
+  function sceneEncoder(entries) {
+    const shown = Array.from({ length: TUBE_COUNT }, () => new Uint8Array(WIDTH * HEIGHT));
+    const blobs = [];
+    const places = new Map();
+    const records = [];
+    const same = (a, b) => a.length === b.length && sameRange(a, b, 0, a.length);
+    const blobNumber = (blob) => {
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < blob.length; i++) hash = Math.imul(hash ^ blob[i], 0x01000193) >>> 0;
+      const key = `${hash}:${blob.length}`;
+      const candidates = places.get(key) || [];
+      for (const candidate of candidates) if (same(candidate.blob, blob)) return candidate.number;
+      const number = blobs.length;
+      blobs.push(blob);
+      candidates.push({ blob, number });
+      places.set(key, candidates);
+      return number;
+    };
+    const add = (indexed) => {
+      const patches = [];
+      let count = 0;
+      for (let imageIndex = 0; imageIndex < TUBE_COUNT; imageIndex++) {
+        const left = imageIndex * TUBE_PITCH;
+        const current = new Uint8Array(WIDTH * HEIGHT);
+        for (let y = 0; y < HEIGHT; y++) {
+          current.set(indexed.subarray(y * CANVAS_WIDTH + left, y * CANVAS_WIDTH + left + WIDTH), y * WIDTH);
+        }
+        if (same(current, shown[imageIndex])) continue;
+        for (const rectangle of mergeTouching(dirtyRectangles(shown[imageIndex], current))) {
+          for (const [x, y, width, height] of splitForeground(shown[imageIndex], current, ...rectangle)) {
+            const pixels = new Uint8Array(width * height);
+            for (let row = 0; row < height; row++) {
+              pixels.set(current.subarray((y + row) * WIDTH + x, (y + row) * WIDTH + x + width), row * width);
+            }
+            const number = blobNumber(rle(pixels));
+            // Images run left to right, and tube 5 is the leftmost one.
+            patches.push(TUBE_COUNT - 1 - imageIndex, x, y, width, height, 0, number & 255, number >> 8);
+            count++;
+          }
+        }
+        shown[imageIndex] = current;
+      }
+      const record = new Uint8Array(2 + patches.length);
+      record[0] = count & 255;
+      record[1] = count >> 8;
+      record.set(patches, 2);
+      records.push(record);
+    };
+    const size = () => blobs.reduce((sum, blob) => sum + blob.length, 0) + records.reduce((sum, record) => sum + record.length, 0);
+    const finish = (leds = null) => ({ palette: paletteBytes(entries), records, blobs, leds: leds || new Uint8Array(0) });
+    return { add, finish, size };
+  }
+
+  function encodeIndexed(indexedFrames, entries, leds = null) {
+    const encoder = sceneEncoder(entries);
+    for (const indexed of indexedFrames) encoder.add(indexed);
+    return encoder.finish(leds);
+  }
+
+  // The entry of a store for a scene, like the ones that Store.parse reads.
+  function toClip(name, fps, scene) {
+    const hasLeds = scene.leds.length > 0;
+    return {
+      name, kind: 0, frames: scene.records.length, fps, imagesPerFrame: 0, sceneBlobs: scene.blobs.length, reserved: hasLeds ? 1 : 0,
+      images: [scene.palette, ...scene.records, ...scene.blobs, ...(hasLeds ? [scene.leds] : [])],
+    };
+  }
+
+  const api = { rle, dirtyRectangles, mergeTouching, splitForeground, buildPalette, makeQuantizer, sceneEncoder, encodeIndexed, ledFollower, ledTrack, toClip,
+    WIDTH, HEIGHT, TUBE_COUNT, TUBE_PITCH, CANVAS_WIDTH };
+  if (typeof module !== "undefined") module.exports = api;
+  return api;
+})();
+
+// Makes the animations of a theme from files of the user: an animated GIF, WebP or PNG, a video, or a
+// numbered series of images. Each is fitted to the strip that crosses the six tubes, shrunk to the colors
+// that the tubes can show, and stored as a scene, with a light for each tube if asked.
+const DekatronCreator = (() => {
+  const S = DekatronScene;
+  const idle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const TYPES = { gif: "image/gif", webp: "image/webp", png: "image/png", apng: "image/apng", jpg: "image/jpeg", jpeg: "image/jpeg" };
+  const extension = (file) => (file.name.match(/\.([^.]+)$/) || [])[1]?.toLowerCase() || "";
+
+  // The pictures of one animation, whatever file they come from. count(fps) says how many frames there are
+  // at that rate, and frame(k, fps) gives the k-th as something that can be drawn.
+  async function openSource(files) {
+    const list = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const first = list[0];
+    if (list.length > 1) {
+      return {
+        still: false,
+        count: () => list.length,
+        async frame(k) {
+          const bitmap = await createImageBitmap(list[k]);
+          return { drawable: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
+        },
+        close() {},
+      };
+    }
+    if (first.type.startsWith("video/")) return openVideo(first);
+    if (typeof ImageDecoder === "undefined") throw new Error("This browser cannot read animated images. Use a video file, or a numbered series of images");
+    const type = first.type || TYPES[extension(first)];
+    if (!type) throw new Error(`${first.name}: not a picture or a video`);
+    const decoder = new ImageDecoder({ data: await first.arrayBuffer(), type });
+    await decoder.tracks.ready;
+    const frames = decoder.tracks.selectedTrack.frameCount;
+    const starts = [];
+    let total = 0;
+    for (let index = 0; index < frames; index++) {
+      const { image } = await decoder.decode({ frameIndex: index });
+      starts.push(total);
+      total += (image.duration || 100000) / 1e6; // GIFs without a time play at 10 per second
+      image.close();
+    }
+    return {
+      still: frames === 1,
+      count: (fps) => Math.max(1, Math.floor(total * fps)),
+      async frame(k, fps) {
+        const time = k / fps;
+        let index = 0;
+        while (index + 1 < frames && starts[index + 1] <= time) index++;
+        const { image } = await decoder.decode({ frameIndex: index });
+        return { drawable: image, width: image.displayWidth, height: image.displayHeight, release: () => image.close() };
+      },
+      close: () => decoder.close(),
+    };
+  }
+
+  async function openVideo(file) {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    const link = URL.createObjectURL(file);
+    video.src = link;
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = () => reject(new Error(`${file.name}: this browser cannot play it`));
+    });
+    return {
+      still: false,
+      count: (fps) => Math.max(1, Math.floor(video.duration * fps)),
+      async frame(k, fps) {
+        await new Promise((resolve) => {
+          video.onseeked = resolve;
+          video.currentTime = Math.min(k / fps, Math.max(0, video.duration - 0.001));
+        });
+        return { drawable: video, width: video.videoWidth, height: video.videoHeight, release() {} };
+      },
+      close: () => URL.revokeObjectURL(link),
+    };
+  }
+
+  // Draws a picture on the black strip: "fill" covers all of it and crops what sticks out, "fit" shows all of
+  // the picture and leaves black around it.
+  function painter(fit) {
+    const canvas = document.createElement("canvas");
+    canvas.width = S.CANVAS_WIDTH;
+    canvas.height = S.HEIGHT;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    return ({ drawable, width, height }) => {
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const scale = (fit ? Math.min : Math.max)(canvas.width / width, canvas.height / height);
+      context.drawImage(drawable, (canvas.width - width * scale) / 2, (canvas.height - height * scale) / 2, width * scale, height * scale);
+      return context.getImageData(0, 0, canvas.width, canvas.height);
+    };
+  }
+
+  // Every frame of a role, as strips: those asked for in `only` (all when it is left out).
+  // How many frames a role has: the whole of the file, or the seconds asked for if that is less. A still
+  // picture lasts as long as asked.
+  const framesOf = (source, role) => {
+    const asked = Math.max(1, Math.floor(role.seconds * role.fps));
+    return Math.min(source.still ? asked : source.count(role.fps), asked, 900);
+  };
+
+  async function* strips(source, role, only) {
+    const draw = painter(role.fit);
+    const total = framesOf(source, role);
+    for (let k = 0; k < total; k++) {
+      if (only && !only.has(k)) continue;
+      const picture = await source.frame(source.still ? 0 : k, role.fps);
+      const strip = draw(picture);
+      picture.release();
+      yield [k, total, strip];
+    }
+  }
+
+  const half = (strip) => {
+    const width = strip.width >> 1;
+    const height = strip.height >> 1;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) data.set(strip.data.subarray(((y * 2) * strip.width + x * 2) * 4, ((y * 2) * strip.width + x * 2) * 4 + 4), (y * width + x) * 4);
+    }
+    return { data, width, height };
+  };
+
+  // roles: [{ name, files, fps, seconds, fit, lights }] for the animations that are new. Gives
+  // { clips: [entries], bytes } and calls report(text, fraction) as it goes. `stop.now` ends it early.
+  async function makeClips(roles, capacity, report, stop = {}) {
+    const sources = [];
+    for (const role of roles) sources.push(await openSource(role.files));
+    try {
+      // The palette is shared by the animations, so they come out in the same colors and can share images.
+      const samples = [];
+      for (const [index, role] of roles.entries()) {
+        const total = framesOf(sources[index], role);
+        const wanted = new Set(Array.from({ length: Math.min(8, total) }, (_, n) => Math.floor((n * total) / Math.min(8, total))));
+        for await (const [, , strip] of strips(sources[index], role, wanted)) samples.push(half(strip));
+        report(`Choosing colors for ${role.label}`, (index + 1) / (roles.length * 4));
+        await idle();
+      }
+      const entries = S.buildPalette(samples);
+      const quantize = S.makeQuantizer(entries);
+      const clips = [];
+      let bytes = 0;
+      for (const [index, role] of roles.entries()) {
+        const encoder = S.sceneEncoder(entries);
+        const follow = role.lights ? S.ledFollower() : null;
+        const lights = [];
+        for await (const [k, total, strip] of strips(sources[index], role)) {
+          if (stop.now) throw new Error("Stopped");
+          encoder.add(quantize(strip));
+          if (follow) lights.push(follow(strip));
+          if (k % 3 === 0) {
+            report(`${role.label}: frame ${k + 1} of ${total}`, 0.25 + 0.75 * ((index + (k + 1) / total) / roles.length));
+            await idle();
+          }
+          if (bytes + encoder.size() > capacity) throw new Error(`${role.label} is too big for the clock. Try fewer seconds, fewer frames per second, or something with less moving`);
+        }
+        const leds = follow ? new Uint8Array(lights.length * 18) : null;
+        if (follow) lights.forEach((frame, i) => leds.set(frame, i * 18));
+        const scene = encoder.finish(leds);
+        bytes += encoder.size() + (leds ? leds.length : 0);
+        clips.push(S.toClip(role.name, role.fps, scene));
+      }
+      return { clips, bytes };
+    } finally {
+      sources.forEach((source) => source.close());
+    }
+  }
+
+  return { makeClips };
+})();
+
+// The theme creator as a page of its own. It runs in the browser and sends nothing anywhere: it makes a
+// theme file, which the page of the clock takes with Change theme.
+(() => {
+  "use strict";
+  const Store = DekatronStore;
+  const ROLES = [["boot", "Startup"], ["connecting", "Connecting"], ["online", "Connected"], ["countdown_end", "Countdown finale"]];
+  // The clock holds 1152 KB of faces and theme. This leaves room for four faces.
+  const BUDGET = 900000;
+
+  const h = (tag, attributes = {}, ...children) => {
+    const element = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) {
+      if (name === "class") element.className = value;
+      else if (name.startsWith("on")) element.addEventListener(name.slice(2), value);
+      else if (value === true) element.setAttribute(name, "");
+      else if (value !== false && value != null) element.setAttribute(name, value);
+    }
+    for (const child of children.flat()) element.append(child?.nodeType ? child : document.createTextNode(child ?? ""));
+    return element;
+  };
+  const card = (title, ...content) => h("section", { class: "card" }, h("h2", {}, title), content);
+  const kilobytes = (bytes) => `${Math.round(bytes / 1024)} KB`;
+
+  document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+  function dialog(title, content, buttons) {
+    const box = h("dialog", {}, h("h3", {}, title), content, h("div", { class: "row" }, buttons));
+    document.body.append(box);
+    box.showModal();
+    return { close: () => { box.close(); box.remove(); } };
+  }
+
+  const toast = (message, bad = false) => {
+    document.querySelector(".toast")?.remove();
+    const element = h("div", { class: "toast" + (bad ? " bad" : "") }, message);
+    document.body.append(element);
+    setTimeout(() => element.remove(), bad ? 7000 : 3000);
+  };
+
+  const name = h("input", { type: "text", maxlength: 15, placeholder: "Name of the theme", class: "grow" });
+  const author = h("input", { type: "text", maxlength: 40, placeholder: "Your name (optional)", class: "grow" });
+  const about = h("input", { type: "text", maxlength: 160, placeholder: "A line about it (optional)", class: "grow" });
+  const fit = h("select", { class: "grow", "aria-label": "Picture on the strip" },
+    [h("option", { value: "fill" }, "Fill the strip, cropping"), h("option", { value: "fit" }, "Fit inside, with black around")]);
+  const lights = h("select", { class: "grow", "aria-label": "Lights" },
+    [h("option", { value: "follow" }, "Lights follow the picture"), h("option", { value: "off" }, "No lights")]);
+  const result = h("div", {});
+
+  const picks = ROLES.map(([role, label]) => {
+    const pick = { role, label, files: null };
+    const shown = h("span", { class: "muted" }, "Nothing chosen");
+    const input = h("input", { type: "file", accept: "image/*,video/*", multiple: true, hidden: true });
+    input.addEventListener("change", () => {
+      pick.files = input.files.length ? [...input.files] : null;
+      shown.textContent = pick.files ? (pick.files.length > 1 ? `${pick.files.length} images` : pick.files[0].name) : "Nothing chosen";
+    });
+    pick.seconds = h("input", { type: "number", min: 1, max: 60, value: label === "Connecting" ? 8 : 10, "aria-label": `${label} seconds` });
+    pick.fps = h("input", { type: "number", min: 1, max: 30, value: 15, "aria-label": `${label} frames per second` });
+    pick.row = h("div", { class: "item" }, h("div", { class: "grow" },
+      h("div", { class: "name" }, label),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: () => input.click() }, "Choose"), input, shown),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Seconds"), pick.seconds, h("span", { class: "muted" }, "per second"), pick.fps)));
+    return pick;
+  });
+
+  async function make() {
+    result.replaceChildren();
+    if (!name.value.trim()) return toast("Give the theme a name", true);
+    const missing = picks.find((pick) => !pick.files);
+    if (missing) return toast(`Choose a file for ${missing.label}`, true);
+    const roles = picks.map((pick) => ({
+      name: pick.role, label: pick.label, files: pick.files, fps: Math.min(30, Math.max(1, +pick.fps.value || 15)),
+      seconds: Math.min(60, Math.max(1, +pick.seconds.value || 8)), fit: fit.value === "fit", lights: lights.value === "follow",
+    }));
+    const progress = h("progress", { max: 1, value: 0 });
+    const text = h("p", { class: "muted" }, "Reading the files…");
+    const stop = { now: false };
+    const shown = dialog("Making the theme…", h("div", {}, progress, text), [h("button", { class: "btn", onclick: () => { stop.now = true; } }, "Stop")]);
+    try {
+      const made = await DekatronCreator.makeClips(roles, BUDGET, (message, fraction) => { text.textContent = message; progress.value = fraction; }, stop);
+      const info = {};
+      if (author.value.trim()) info.author = author.value.trim();
+      if (about.value.trim()) info.description = about.value.trim();
+      const bytes = Store.build([Store.theme(name.value.trim(), info), ...made.clips]);
+      const link = h("a", { class: "btn primary", href: URL.createObjectURL(new Blob([bytes])), download: `${name.value.trim()}.bin` }, `Download ${name.value.trim()}.bin`);
+      result.replaceChildren(
+        h("p", {}, `Ready: ${kilobytes(bytes.length)}, with ${made.clips.map((clip) => `${clip.frames} frames`).join(", ")}.`),
+        h("p", { class: "muted" }, "On the page of your clock, open Style, press Change theme and choose this file, then Apply."),
+        h("div", { class: "row" }, link));
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      shown.close();
+    }
+  }
+
+  document.getElementById("app").append(
+    h("header", {}, h("div", { class: "brand" }, "Deka", h("b", {}, "tron"), " themes")),
+    card("Create a theme",
+      h("p", { class: "muted" }, "A theme is four animations: when the clock starts, while it connects, when it is connected and at the end of a countdown. Use an animated GIF, WebP or PNG, a video, or a numbered series of images for each. The animation crosses the six tubes as one wide strip, nearly six times as wide as tall. Nothing leaves your computer."),
+      h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about),
+      h("div", { class: "row" }, fit), h("div", { class: "row" }, lights),
+      h("div", {}, picks.map((pick) => pick.row)),
+      h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn primary", onclick: make }, "Create")),
+      result),
+    card("Tips",
+      h("p", { class: "muted" }, "Few colors and small movements make small files. The clock has room for about 1 MB of faces and theme together, and this page keeps your theme under 880 KB so four faces still fit. If it is too big, use fewer seconds or fewer frames per second."),
+      h("p", { class: "muted" }, "The lights take the color of what is on each tube, and the tubes are lit left to right, so put the action where the tubes are.")));
+})();
+</script>
+</body>
+</html>
