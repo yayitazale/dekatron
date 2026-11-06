@@ -10,7 +10,7 @@ It is in English, light or dark following your device, and made for a phone firs
 
 - **Clock:** the five slots for clock faces (one built into the firmware and room for more), a countdown, and a few effects.
 - **Style:** the theme, which is a set of four animations (startup, connecting, connected and the countdown finale) that the clock always needs and that change together, and a studio to make new faces.
-- **Settings:** timezone, a password, a backup of the faces and the theme, and a few details of the clock.
+- **Settings:** timezone, a password, a backup of the faces and the theme, the firmware (a new `firmware.ota.bin` can be sent once a password is set), and a few details of the clock.
 
 Changes to faces and the theme wait in the page until you press **Apply**, which sends the whole store to the clock in about ten seconds.
 

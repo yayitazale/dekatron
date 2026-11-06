@@ -120,11 +120,11 @@
   }
 
   // The body of a store goes up with a progress bar, which fetch cannot give.
-  function upload(bytes, onProgress) {
+  function upload(bytes, onProgress, path = "/api/store") {
     return new Promise((resolve, reject) => {
       const send = () => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/store");
+        xhr.open("POST", path);
         xhr.setRequestHeader("X-Dekatron", "1");
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
         if (authorization()) xhr.setRequestHeader("Authorization", authorization());
@@ -265,6 +265,34 @@
     }
     await refresh();
     render();
+  }
+
+  // A firmware file is checked before it is sent, and the clock checks it again before it takes it.
+  async function sendFirmware(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.length < 100000 || bytes.length > 1441792 || bytes[0] !== 0xe9) {
+      return toast("That is not a firmware file. Use firmware.ota.bin", true);
+    }
+    const progress = h("progress", { max: 1, value: 0 });
+    const shown = dialog("Sending the firmware…", h("div", {}, progress, h("p", { class: "muted" }, "Do not unplug the clock.")), []);
+    try {
+      await upload(bytes, (fraction) => { progress.value = fraction; }, "/api/firmware");
+    } catch (error) {
+      shown.close();
+      return toast(error.message, true);
+    }
+    shown.close();
+    const waiting = dialog("The clock restarts…", h("p", { class: "muted" }, "It takes about half a minute. If the new firmware does not start, the clock goes back to the old one."), []);
+    await new Promise((done) => setTimeout(done, 8000));
+    for (let tries = 0; tries < 40; tries++) {
+      try {
+        const answer = await fetch("/api/info", { cache: "no-store" });
+        if (answer.ok) break;
+      } catch (error) { /* it is still down */ }
+      await new Promise((done) => setTimeout(done, 2000));
+    }
+    waiting.close();
+    location.reload();
   }
 
   function confirmApply() {
@@ -704,6 +732,7 @@
         toast(error.message, true);
       }
     } });
+    const firmwareFile = h("input", { type: "file", accept: ".bin", hidden: true, onchange: (event) => event.target.files[0] && sendFirmware(event.target.files[0]) });
     const uptime = state.uptime_s;
 
     return h("div", {},
@@ -732,6 +761,13 @@
         h("div", { class: "row" },
           h("button", { class: "btn", disabled: !state.store.ready, onclick: download }, "Download"),
           h("button", { class: "btn", onclick: () => restore.click() }, "Restore from a file"), restore)),
+      card("Firmware",
+        h("p", { class: "muted" }, `Built ${state.build || "at an unknown time"}.`),
+        state.settings.password
+          ? h("div", {},
+            h("p", { class: "muted" }, "Choose firmware.ota.bin of a newer release. The clock checks it, restarts, and keeps the old firmware if the new one does not start."),
+            h("div", { class: "row" }, h("button", { class: "btn", onclick: () => firmwareFile.click() }, "Choose a file"), firmwareFile))
+          : h("p", { class: "muted" }, "Set a password first. Nobody should be able to send a program to the clock without one.")),
       card("About",
         h("p", { class: "muted" }, `${state.name} · ESPHome ${state.esphome}`),
         h("p", { class: "muted" }, `Up ${Math.floor(uptime / 3600)} h ${Math.floor(uptime / 60) % 60} min · ${kilobytes(state.free_heap)} of memory free`)));

@@ -5,6 +5,7 @@
 #include "esphome/components/elekstube_ips/elekstube_ips.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -53,7 +54,7 @@ class DekatronApi : public Component, public AsyncWebHandler {
   bool isRequestHandlerTrivial() const override { return false; }
 
  protected:
-  enum class Route : uint8_t { NONE, WEB, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD, CONTROLS };
+  enum class Route : uint8_t { NONE, WEB, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD, CONTROLS, FIRMWARE };
 
   Route route_(AsyncWebServerRequest *request) const;
   int precheck_(AsyncWebServerRequest *request, Route route);
@@ -70,6 +71,7 @@ class DekatronApi : public Component, public AsyncWebHandler {
   void change_settings_(AsyncWebServerRequest *request);
   void change_password_(AsyncWebServerRequest *request);
   void change_controls_(AsyncWebServerRequest *request);
+  void finish_firmware_(AsyncWebServerRequest *request);
   void append_controls_(std::string &json);
 
   web_server_base::WebServerBase *base_{nullptr};
@@ -91,6 +93,8 @@ class DekatronApi : public Component, public AsyncWebHandler {
   int denied_{0};          // what handleBody decided, which only counts if handleBody ran
   bool body_handled_{false};
   bool uploading_{false};
+  ota::OTABackendPtr firmware_;   // the image that is being written, when there is one
+  const char *refusal_{nullptr};  // why handleBody refused, when it has a better reason than the status
   uint32_t upload_started_ms_{0};
   uint32_t upload_started_frames_{0};
 };

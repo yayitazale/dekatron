@@ -118,6 +118,7 @@ DekatronApi::Route DekatronApi::route_(AsyncWebServerRequest *request) const {
     if (strcmp(path, "settings") == 0) return Route::SETTINGS;
     if (strcmp(path, "password") == 0) return Route::PASSWORD;
     if (strcmp(path, "controls") == 0) return Route::CONTROLS;
+    if (strcmp(path, "firmware") == 0) return Route::FIRMWARE;
   }
   return Route::NONE;
 }
@@ -193,8 +194,29 @@ void DekatronApi::handleBody(AsyncWebServerRequest *request, uint8_t *data, size
     this->body_.clear();
     this->uploading_ = false;
     this->body_handled_ = true;
+    this->refusal_ = nullptr;
+    if (this->firmware_) {  // an earlier upload that never finished
+      this->firmware_->abort();
+      this->firmware_.reset();
+    }
     this->denied_ = this->precheck_(request, route);
-    if (this->denied_ == 0 && route == Route::STORE_POST) {
+    if (this->denied_ == 0 && route == Route::FIRMWARE) {
+      // A program from anybody on the network is the one thing that must never be open.
+      if (!this->tubes_->settings().data().password_set) {
+        this->denied_ = 422;
+        this->refusal_ = "set a password before sending firmware";
+      } else if (total < 100000 || total > 1441792) {
+        this->denied_ = 422;
+        this->refusal_ = "that is not a firmware file for this clock";
+      } else {
+        this->firmware_ = ota::make_ota_backend();
+        if (!this->firmware_ || this->firmware_->begin(total) != ota::OTA_RESPONSE_OK) {
+          this->firmware_.reset();
+          this->denied_ = 422;
+          this->refusal_ = "the clock cannot take a firmware of this size";
+        }
+      }
+    } else if (this->denied_ == 0 && route == Route::STORE_POST) {
       if (total > store.capacity()) {
         this->denied_ = 422;
       } else if (!store.begin_write()) {
@@ -210,6 +232,27 @@ void DekatronApi::handleBody(AsyncWebServerRequest *request, uint8_t *data, size
   }
   if (this->denied_ != 0) {
     return;  // the rest of the body is read and thrown away
+  }
+  if (route == Route::FIRMWARE) {
+    if (this->firmware_->write(data, len) != ota::OTA_RESPONSE_OK) {
+      this->firmware_->abort();
+      this->firmware_.reset();
+      this->denied_ = 422;
+      this->refusal_ = "the clock could not write the firmware";
+      return;
+    }
+    if (index + len >= total) {
+      // The last piece: checks the image and makes it the one to start next.
+      if (this->firmware_->end() != ota::OTA_RESPONSE_OK) {
+        this->denied_ = 422;
+        this->refusal_ = "that file is not a valid firmware for this clock";
+      } else {
+        this->uploading_ = true;  // ready to start
+      }
+      if (this->denied_ != 0) this->firmware_->abort();
+      this->firmware_.reset();
+    }
+    return;
   }
   if (route == Route::STORE_POST) {
     if (store.write(data, len) != Store::Status::WRITING) {
@@ -227,7 +270,7 @@ void DekatronApi::handleRequest(AsyncWebServerRequest *request) {
   const bool checked = this->body_handled_;
   this->body_handled_ = false;
   int denied = checked ? this->denied_ : this->precheck_(request, route);
-  if (denied == 0 && route == Route::STORE_POST && !this->uploading_) {
+  if (denied == 0 && (route == Route::STORE_POST || route == Route::FIRMWARE) && !this->uploading_) {
     denied = 400;
   }
   const bool uploading = this->uploading_;
@@ -240,9 +283,11 @@ void DekatronApi::handleRequest(AsyncWebServerRequest *request) {
                           : denied == 409 ? "another store is being written"
                           : denied == 422 ? "too large or not a valid store"
                                           : "the header X-Dekatron is missing, or the request is empty";
-    this->error_(request, denied, denied == 422 && route == Route::STORE_POST && !uploading
+    this->error_(request, denied, this->refusal_ != nullptr ? this->refusal_
+                                  : denied == 422 && route == Route::STORE_POST && !uploading
                                       ? this->tubes_->store().state().c_str()
                                       : message);
+    this->refusal_ = nullptr;
     return;
   }
 
@@ -278,6 +323,9 @@ void DekatronApi::handleRequest(AsyncWebServerRequest *request) {
     case Route::CONTROLS:
       this->change_controls_(request);
       break;
+    case Route::FIRMWARE:
+      this->finish_firmware_(request);
+      break;
     case Route::NONE:
       this->error_(request, 404, "no such call");
       break;
@@ -311,6 +359,12 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
   append_json_string(json, App.get_name().c_str());
   json += ",\"esphome\":";
   append_json_string(json, ESPHOME_VERSION);
+  json += ",\"build\":";
+  {
+    char built[Application::BUILD_TIME_STR_SIZE];
+    App.get_build_time_string(built);
+    append_json_string(json, built);
+  }
   json += ",\"uptime_s\":";
   append_number(json, static_cast<long>(millis() / 1000));
   json += ",\"free_heap\":";
@@ -383,6 +437,13 @@ void DekatronApi::send_store_(AsyncWebServerRequest *request) {
   auto *response = request->beginResponse(200, "application/octet-stream", store.data(), store.size());
   response->addHeader("Content-Disposition", "attachment; filename=\"store.bin\"");
   request->send(response);
+}
+
+void DekatronApi::finish_firmware_(AsyncWebServerRequest *request) {
+  ESP_LOGI(TAG, "New firmware written, restarting");
+  this->reply_(request, 200, "{\"ok\":true,\"restart\":true}");
+  // Gives the answer time to leave before the clock goes down.
+  this->defer([this]() { this->set_timeout(1500, []() { App.safe_reboot(); }); });
 }
 
 void DekatronApi::finish_store_(AsyncWebServerRequest *request) {

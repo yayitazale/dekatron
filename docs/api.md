@@ -25,6 +25,7 @@ The clock speaks plain HTTP, so on a network you do not trust a password can be 
 | `POST /api/stop` | Stops it |
 | `POST /api/settings` | Changes settings, see below |
 | `POST /api/controls` | Changes what the clock shows, see below |
+| `POST /api/firmware` | Replaces the firmware with the body (`firmware.ota.bin`), as `application/octet-stream`. Needs a password, answers `{"ok":true,"restart":true}` and restarts about a second and a half later |
 | `POST /api/password` | `{"password": "..."}` sets it, and an empty one removes it |
 
 Errors answer `{"error": "..."}` with a status of 400 (a missing header or empty request), 401 (password), 404, 409 (another store is being written) or 422 (the content is not valid).
@@ -56,6 +57,10 @@ Settings are kept across restarts.
 - Turning the lights off (`"leds": {"on": false}`) does only that, and the rest of the same call is ignored.
 
 Clips with lights say `"leds": true` in `clips` of the state.
+
+## Firmware
+
+`POST /api/firmware` is refused with 422 while the clock has no password, because a program must never be open to the whole network. The clock checks the image as it takes it, and a file that is not a firmware for it changes nothing. After a restart that does not come up the clock goes back to the previous firmware. `build` in `/api/state` tells which one is running.
 
 ## Replacing the store
 

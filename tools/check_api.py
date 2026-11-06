@@ -177,6 +177,10 @@ restore["leds"] = {"color": controls["leds"]["color"], "brightness": controls["l
 status, now = controls_after(restore)
 check("controls restored", status == 200 and now["brightness"] == controls["brightness"] and now["hour24"] == controls["hour24"], now)
 
+# Firmware: refused without a password, and refused when it is not a firmware, and the clock goes on running.
+status, answer, _ = call("POST", "/api/firmware", bytes([0xE9]) * 200000)
+check("firmware is refused without a password", status == 422 and "password" in answer.get("error", ""), (status, answer))
+
 # Password.
 status, answer, _ = call("POST", "/api/password", {"password": "correct horse"})
 check("password set", status == 200, (status, answer))
@@ -198,6 +202,12 @@ for label, extra, expected in (("form post with the header but no password", {"X
     response.read()
     check(label + " is refused", response.status == expected, response.status)
     connection.close()
+status, answer, _ = call("POST", "/api/firmware", b"x" * 300000, password="correct horse")
+check("junk is refused as firmware", status == 422, (status, answer))
+status, answer, _ = call("POST", "/api/firmware", bytes([0xE9]) * 300000, password="correct horse")
+check("an invalid image is refused as firmware", status == 422, (status, answer))
+status, answer, _ = call("POST", "/api/firmware", b"abc", password="wrong")
+check("firmware needs the password", status == 401, (status, answer))
 status, answer, _ = call("POST", "/api/play", b"x" * 2000, headers={"Content-Type": "text/plain"}, password="correct horse")
 check("an oversized body is refused", status == 422, (status, answer))
 status, answer, _ = call("POST", "/api/settings", {"boot_animation": True}, password="correct horse")

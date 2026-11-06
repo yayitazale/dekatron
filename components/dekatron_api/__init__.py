@@ -8,7 +8,7 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = []
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["web_server_base", "json", "sha256", "socket"]
+AUTO_LOAD = ["web_server_base", "json", "sha256", "socket", "ota"]
 
 CONF_TUBES_ID = "tubes_id"
 
