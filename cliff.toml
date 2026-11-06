@@ -1,0 +1,65 @@
+# git-cliff (https://git-cliff.org) configuration that generates CHANGELOG.md
+# from commit messages. See CONTRIBUTING.md and scripts/release.py.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and the project uses [Semantic Versioning](https://semver.org/): the number in
+`VERSION` is also the one the firmware reports.
+
+Generated automatically from commit messages. The 0.1.0 entry is the only
+one written by hand: it summarises everything before the first release.
+"""
+# Each new release is prepended to what is already there (--prepend in
+# scripts/release.py), so this body only describes ONE version.
+body = """{% if version %}## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}{% else %}## [Unreleased]{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=8, end="") }}](https://github.com/yayitazale/dekatron/commit/{{ commit.id }})){% endfor %}
+{% endfor %}"""
+trim = false
+footer = ""
+
+[bump]
+# While the project is 0.x a new feature bumps the minor number and a breaking
+# change does too, never the major one: the jump to 1.0.0 is made by hand.
+features_always_bump_minor = true
+breaking_always_bump_major = false
+initial_tag = "v0.1.0"
+
+[git]
+conventional_commits = true
+# Anything that does not follow the format is left out, among other things the
+# merge commits created when a pull request is accepted.
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9]*"
+topo_order = false
+sort_commits = "oldest"
+
+commit_preprocessors = [
+  # Issue and pull request references (#12) as links.
+  { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/yayitazale/dekatron/issues/${2}))" },
+]
+
+# Section order inside each release. The HTML comments only sort the groups
+# (git-cliff orders them alphabetically) and are stripped from the output.
+commit_parsers = [
+  { message = '^Merge branch', skip = true },
+  { message = '^Merge pull request', skip = true },
+  { message = '^chore\(release\)', skip = true },
+  { message = '^feat', group = '<!-- 0 -->Added' },
+  { message = '^fix', group = '<!-- 1 -->Fixed' },
+  { message = '^perf', group = '<!-- 2 -->Performance' },
+  { message = '^refactor', group = '<!-- 3 -->Changed' },
+  { message = '^docs', group = '<!-- 4 -->Documentation' },
+  { message = '^(chore|build|ci|test|style)', group = '<!-- 5 -->Maintenance' },
+  { message = '^revert', group = '<!-- 6 -->Reverted' },
+]

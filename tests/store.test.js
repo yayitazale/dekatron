@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Run with: node --test tests/
 // Checks the store library of the web page against stores that Python wrote, so the two stay the same format.
 const test = require("node:test");

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 import esphome.codegen as cg
 from esphome.components import light, select, time as time_
 from esphome.components.esp32 import include_builtin_idf_component

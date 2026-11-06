@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Makes the animations of a theme from files of the user: an animated GIF, WebP or PNG, a video, or a
 // numbered series of images. Each is fitted to the strip that crosses the six tubes, shrunk to the colors
 // that the tubes can show, and stored as a scene, with a light for each tube if asked.

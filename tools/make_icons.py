@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate the icons of the setup screen, embedded in the firmware.
 
 They follow the geometry of the wifi and globe icons of Lucide (https://lucide.dev, ISC License),

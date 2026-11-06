@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "dekatron_api.h"
 
 #include <esp_random.h>
@@ -357,6 +359,8 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
 
   std::string json = "{\"name\":";
   append_json_string(json, App.get_name().c_str());
+  json += ",\"version\":";
+  append_json_string(json, ESPHOME_PROJECT_VERSION);
   json += ",\"esphome\":";
   append_json_string(json, ESPHOME_VERSION);
   json += ",\"build\":";

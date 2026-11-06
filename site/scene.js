@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Scenes for the page, the way tools/make_scenes.py makes them: an animation that crosses the six tubes,
 // stored as only the rectangles that change between frames, with a color for each light on every frame.
 // tests/scene.test.js checks this against the Python code, so the two write the same bytes.
