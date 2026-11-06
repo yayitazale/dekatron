@@ -41,6 +41,7 @@ KIND_THEME = 2
 MAX_FACES = 4  # besides the one built into the firmware
 THEME_ROLES = ("boot", "connecting", "online", "countdown_end")
 MAX_THEME_INFO = 512
+FACE_INFO_IMAGES = DIGITS + 1  # a face may carry a last image: its information as JSON, like a theme
 HEADER = struct.Struct("<4sIIII")  # magic, version, total size, CRC32 of the rest, entry count
 # name, table offset, frames, fps, images per frame, kind, scene blobs, reserved
 ENTRY = struct.Struct(f"<{NAME_BYTES}sIIHBBHH")
@@ -69,9 +70,23 @@ LED_BYTES = 18  # per frame: the six LEDs, one per tube, three bytes each
 def read_frames(path, fps):
     """Returns (PIL images, seconds per image) resampled to `fps`."""
     path = Path(path)
+    if path.is_dir():
+        return read_folder(path)
     if path.suffix.lower() in (".gif", ".webp", ".png", ".apng"):
         return sample_animation(path, fps)
     return read_video(path, fps)
+
+
+def read_folder(path):
+    """The pictures of a folder, in the order of their names (0001.png, 0002.png...), one for each frame."""
+    names = sorted(p for p in path.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".bmp", ".webp", ".gif"))
+    if not names:
+        raise ValueError(f"{path}: no pictures found")
+    frames = []
+    for name in names:
+        with Image.open(name) as image:
+            frames.append(image.convert("RGB"))
+    return frames
 
 
 def sample_animation(path, fps):
@@ -133,21 +148,23 @@ def encode_panorama(frames, quality):
 
 
 def theme_info(info):
-    """The data of a theme as it is stored: compact JSON, such as {"author": ..., "license": ...}."""
+    """The data of a theme or a face as it is stored: compact JSON, such as {"author": ..., "license": ...}."""
     encoded = json.dumps(info, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) > MAX_THEME_INFO:
-        raise ValueError(f"The data of a theme takes {len(encoded)} bytes and the limit is {MAX_THEME_INFO}")
+        raise ValueError(f"The data of a theme or a face takes {len(encoded)} bytes and the limit is {MAX_THEME_INFO}")
     return encoded
 
 
 def build_library(clips, faces=(), theme=None):
-    """Packs the store: faces as (name, [10 JPEG byte strings]), clips as (name, fps, frames) and a theme.
+    """Packs the store: faces as (name, [10 JPEG byte strings]) or (name, [10 JPEG byte strings], info), clips
+    as (name, fps, frames) and a theme.
 
     A clip is a list of frames, each a list of JPEG byte strings, or a Scene. A theme is
     (name, info), where info is a dict with the author, the license and a description. Identical
     images are stored once. A store holds at most MAX_FACES faces, and one theme.
     """
-    items = [(KIND_FACE, name, 1, [images]) for name, images in faces]
+    items = [(KIND_FACE, face[0], 1, [list(face[1]) + ([theme_info(face[2])] if len(face) > 2 and face[2] else [])])
+             for face in faces]
     if theme is not None:
         items.append((KIND_THEME, theme[0], 1, [[theme_info(theme[1])]]))
     items += [(KIND_CLIP, name, fps, frames) for name, fps, frames in clips]
@@ -179,7 +196,7 @@ def build_library(clips, faces=(), theme=None):
         if not frames or not 1 <= fps <= 60:
             raise ValueError(f"{name}: invalid frames or fps")
         images_per_frame = len(frames[0])
-        allowed = {KIND_FACE: (DIGITS,), KIND_THEME: (1,)}.get(kind, (1, TUBE_COUNT))
+        allowed = {KIND_FACE: (DIGITS, FACE_INFO_IMAGES), KIND_THEME: (1,)}.get(kind, (1, TUBE_COUNT))
         if images_per_frame not in allowed or any(len(frame) != images_per_frame for frame in frames):
             raise ValueError(f"{name}: inconsistent images per frame")
         tables.append(position)

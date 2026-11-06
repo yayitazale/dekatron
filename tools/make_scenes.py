@@ -591,7 +591,7 @@ def draw_launch_ground():
 
 THEME = ("Space", {
     "author": "Dekatron",
-    "license": "MIT",
+    "license": "CC-BY-SA-4.0",
     "description": "An astronaut on a tether, a lander in lunar orbit, and a rocket launch",
 })
 
