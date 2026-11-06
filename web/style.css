@@ -120,3 +120,4 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px;
 input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
 input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); }
 .card .row.between + .row.between, .card .row.between + div { margin-top: 14px; }
+.tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 8px; background: var(--accent-soft, #fbe5de); color: var(--accent); font-size: 12px; }

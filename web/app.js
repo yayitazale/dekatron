@@ -470,7 +470,7 @@
       return h("div", { class: "item" },
         clip ? h("button", { class: "round", "aria-label": `Play ${label}`, onclick: () => act(() => call("POST", "/api/play", { type: "clip", name, loop: 1 })) }, icon("play")) : "",
         h("div", { class: "grow" }, h("div", { class: "name" }, label),
-          h("div", { class: "muted" }, clip ? `${(clip.frames / clip.fps).toFixed(1)} s · ${clip.fps} fps` : "Missing")));
+          h("div", { class: "muted" }, clip ? `${(clip.frames / clip.fps).toFixed(1)} s · ${clip.fps} fps` : "Missing", clip && clip.leds ? h("span", { class: "tag" }, "lights") : "")));
     });
     const entry = themeEntry();
     const info = entry ? Store.themeInfo(entry) : {};
@@ -481,7 +481,7 @@
       h("div", { class: "row between" },
         h("div", {}, h("div", { class: "big" }, entry ? entry.name : "No theme"), h("div", { class: "muted" }, details)),
         h("button", { class: "btn primary", onclick: () => fileInput.click() }, "Change theme"), fileInput),
-      info.description ? h("p", { class: "muted", style: "margin-top:10px" }, info.description) : "",
+      info.description ? h("p", { class: "muted", style: "margin:10px 0 14px" }, info.description) : "",
       h("div", {}, rows));
   }
 
