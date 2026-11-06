@@ -68,7 +68,7 @@ To back out before pushing: `git tag -d vX.Y.Z && git reset --hard HEAD~1`.
 
 ## Local development
 
-Needs Python 3.12 or later with Pillow, and Node 22.
+Needs Python 3.12 or later with Pillow, and Node 24.
 
 ```bash
 python -m unittest discover -s tests   # the tools and the page build
