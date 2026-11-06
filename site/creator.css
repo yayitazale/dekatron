@@ -61,3 +61,12 @@ dialog .row { margin-top: 16px; }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; max-width: 90vw; z-index: 20; font-size: 14px; }
 .toast.bad { background: var(--bad); color: #fff; }
 footer { max-width: 760px; margin: 0 auto; padding: 24px; border-top: 1px solid var(--divider); color: var(--text3); font-size: 13px; text-align: center; }
+.btn.on { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+.digits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.digits canvas { border-radius: 6px; border: 1px solid var(--divider); background: #000; }
+input[type=range] { accent-color: var(--brand); flex: 1 1 100px; min-width: 0; }
+input[type=color] { width: 40px; height: 34px; padding: 2px; background: var(--bg-alt); border: 1px solid var(--divider); border-radius: 8px; }
+.sim, .timeline { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--divider); background: #0b0b0d; }
+.flash { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--divider); font-size: 14px; }
+.flash .dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border); flex: none; }
+section[hidden] { display: none; }
