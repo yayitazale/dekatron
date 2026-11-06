@@ -12,13 +12,13 @@ AUTO_LOAD = ["web_server_base", "json", "sha256", "socket"]
 
 CONF_TUBES_ID = "tubes_id"
 
-opentube_api_ns = cg.esphome_ns.namespace("opentube_api")
-OpenTubeApi = opentube_api_ns.class_("OpenTubeApi", cg.Component)
+dekatron_api_ns = cg.esphome_ns.namespace("dekatron_api")
+DekatronApi = dekatron_api_ns.class_("DekatronApi", cg.Component)
 ElekstubeIps = cg.esphome_ns.namespace("elekstube_ips").class_("ElekstubeIps", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(OpenTubeApi),
+        cv.GenerateID(): cv.declare_id(DekatronApi),
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(web_server_base.WebServerBase),
         cv.Required(CONF_TUBES_ID): cv.use_id(ElekstubeIps),
     }

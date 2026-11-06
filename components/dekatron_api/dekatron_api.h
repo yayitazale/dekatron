@@ -7,13 +7,14 @@
 #include "esphome/core/component.h"
 
 namespace esphome {
-namespace opentube_api {
+namespace dekatron_api {
 
 // Everything lives under /api/. With a password set, every call but /api/info needs it, as HTTP
 // basic authentication whose user name is ignored. Calls that change something are POSTs that
-// also need the header X-OpenTube, which a web page of another site cannot add without a
+// also need the header X-Dekatron, which a web page of another site cannot add without a
 // permission that this API never gives.
 //
+//   GET  /          the web page of the clock, which uses everything below
 //   GET  /api/info      who this is, without any detail
 //   GET  /api/state     the state of the clock, its settings, and the faces and clips it has
 //   GET  /api/store     the store as it is in flash
@@ -22,7 +23,7 @@ namespace opentube_api {
 //   POST /api/stop      stops it
 //   POST /api/settings  {"timezone": "CET-1CEST,M3.5.0,M10.5.0/3", "boot_animation": true}
 //   POST /api/password  {"password": "..."}, and an empty one removes it
-class OpenTubeApi : public Component, public AsyncWebHandler {
+class DekatronApi : public Component, public AsyncWebHandler {
  public:
   void set_web_server_base(web_server_base::WebServerBase *base) { this->base_ = base; }
   void set_tubes(elekstube_ips::ElekstubeIps *tubes) { this->tubes_ = tubes; }
@@ -37,7 +38,7 @@ class OpenTubeApi : public Component, public AsyncWebHandler {
   bool isRequestHandlerTrivial() const override { return false; }
 
  protected:
-  enum class Route : uint8_t { NONE, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD };
+  enum class Route : uint8_t { NONE, WEB, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD };
 
   Route route_(AsyncWebServerRequest *request) const;
   int precheck_(AsyncWebServerRequest *request, Route route);
@@ -45,6 +46,7 @@ class OpenTubeApi : public Component, public AsyncWebHandler {
   void reply_(AsyncWebServerRequest *request, int code, const std::string &json);
   void error_(AsyncWebServerRequest *request, int code, const char *message);
 
+  void send_web_(AsyncWebServerRequest *request);
   void send_info_(AsyncWebServerRequest *request);
   void send_state_(AsyncWebServerRequest *request);
   void send_store_(AsyncWebServerRequest *request);
@@ -66,5 +68,5 @@ class OpenTubeApi : public Component, public AsyncWebHandler {
   uint32_t upload_started_frames_{0};
 };
 
-}  // namespace opentube_api
+}  // namespace dekatron_api
 }  // namespace esphome

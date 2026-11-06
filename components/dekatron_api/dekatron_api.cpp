@@ -1,9 +1,12 @@
-#include "opentube_api.h"
+#include "dekatron_api.h"
 
 #include <esp_random.h>
 
 #include <cstring>
 
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/sha256/sha256.h"
 #include "esphome/core/application.h"
@@ -11,14 +14,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "web_index.h"
 
 namespace esphome {
-namespace opentube_api {
+namespace dekatron_api {
 
-static const char *const TAG = "opentube_api";
+static const char *const TAG = "dekatron_api";
 
 static const char *const API_PREFIX = "/api/";
-static const char *const CSRF_HEADER = "X-OpenTube";
+static const char *const CSRF_HEADER = "X-Dekatron";
 static constexpr size_t MAX_BODY_BYTES = 1024;
 static constexpr size_t MAX_PASSWORD_BYTES = 64;
 static constexpr size_t SALT_BYTES = 8;
@@ -80,19 +84,22 @@ const char *layout_name(uint8_t images_per_frame) {
 
 }  // namespace
 
-void OpenTubeApi::setup() {
+void DekatronApi::setup() {
   this->base_->init();
   this->base_->add_handler_without_auth(this);
 }
 
-void OpenTubeApi::dump_config() {
-  ESP_LOGCONFIG(TAG, "OpenTube API: password %s", this->tubes_->settings().data().password_set ? "set" : "not set");
+void DekatronApi::dump_config() {
+  ESP_LOGCONFIG(TAG, "Dekatron API: password %s", this->tubes_->settings().data().password_set ? "set" : "not set");
 }
 
-OpenTubeApi::Route OpenTubeApi::route_(AsyncWebServerRequest *request) const {
+DekatronApi::Route DekatronApi::route_(AsyncWebServerRequest *request) const {
   request->url_to(this->url_);
   const bool get = request->method() == HTTP_GET;
   const bool post = request->method() == HTTP_POST;
+  if (get && (strcmp(this->url_, "/") == 0 || strcmp(this->url_, "/index.html") == 0)) {
+    return Route::WEB;
+  }
   if (strncmp(this->url_, API_PREFIX, strlen(API_PREFIX)) != 0 || (!get && !post)) {
     return Route::NONE;
   }
@@ -111,13 +118,21 @@ OpenTubeApi::Route OpenTubeApi::route_(AsyncWebServerRequest *request) const {
   return Route::NONE;
 }
 
-bool OpenTubeApi::canHandle(AsyncWebServerRequest *request) const {
+bool DekatronApi::canHandle(AsyncWebServerRequest *request) const {
   const bool method = request->method() == HTTP_GET || request->method() == HTTP_POST;
   request->url_to(this->url_);
+  if (method && request->method() == HTTP_GET && this->route_(request) == Route::WEB) {
+    // While the clock offers its own network to set up the Wi-Fi, that page is the one to show.
+#ifdef USE_CAPTIVE_PORTAL
+    return captive_portal::global_captive_portal == nullptr || !captive_portal::global_captive_portal->is_active();
+#else
+    return true;
+#endif
+  }
   return method && strncmp(this->url_, API_PREFIX, strlen(API_PREFIX)) == 0;
 }
 
-bool OpenTubeApi::authorized_(AsyncWebServerRequest *request) {
+bool DekatronApi::authorized_(AsyncWebServerRequest *request) {
   const auto &settings = this->tubes_->settings().data();
   if (!settings.password_set) {
     return true;
@@ -143,31 +158,31 @@ bool OpenTubeApi::authorized_(AsyncWebServerRequest *request) {
   return false;
 }
 
-int OpenTubeApi::precheck_(AsyncWebServerRequest *request, Route route) {
+int DekatronApi::precheck_(AsyncWebServerRequest *request, Route route) {
   if (route == Route::NONE) {
     return 404;
   }
   if (request->method() == HTTP_POST && !request->hasHeader(CSRF_HEADER)) {
     return 400;
   }
-  if (route != Route::INFO && !this->authorized_(request)) {
+  if (route != Route::INFO && route != Route::WEB && !this->authorized_(request)) {
     return 401;
   }
   return 0;
 }
 
-void OpenTubeApi::reply_(AsyncWebServerRequest *request, int code, const std::string &json) {
+void DekatronApi::reply_(AsyncWebServerRequest *request, int code, const std::string &json) {
   request->send(code, "application/json", json.c_str());
 }
 
-void OpenTubeApi::error_(AsyncWebServerRequest *request, int code, const char *message) {
+void DekatronApi::error_(AsyncWebServerRequest *request, int code, const char *message) {
   std::string json = "{\"error\":";
   append_json_string(json, message);
   json += '}';
   this->reply_(request, code, json);
 }
 
-void OpenTubeApi::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+void DekatronApi::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   const Route route = this->route_(request);
   auto &store = this->tubes_->store();
   if (index == 0) {
@@ -202,7 +217,7 @@ void OpenTubeApi::handleBody(AsyncWebServerRequest *request, uint8_t *data, size
   this->body_.append(reinterpret_cast<const char *>(data), len);
 }
 
-void OpenTubeApi::handleRequest(AsyncWebServerRequest *request) {
+void DekatronApi::handleRequest(AsyncWebServerRequest *request) {
   const Route route = this->route_(request);
   // A body only goes through handleBody when it is not a form, so a request that skipped it is checked here.
   const bool checked = this->body_handled_;
@@ -220,7 +235,7 @@ void OpenTubeApi::handleRequest(AsyncWebServerRequest *request) {
                           : denied == 404 ? "no such call"
                           : denied == 409 ? "another store is being written"
                           : denied == 422 ? "too large or not a valid store"
-                                          : "the header X-OpenTube is missing, or the request is empty";
+                                          : "the header X-Dekatron is missing, or the request is empty";
     this->error_(request, denied, denied == 422 && route == Route::STORE_POST && !uploading
                                       ? this->tubes_->store().state().c_str()
                                       : message);
@@ -228,6 +243,9 @@ void OpenTubeApi::handleRequest(AsyncWebServerRequest *request) {
   }
 
   switch (route) {
+    case Route::WEB:
+      this->send_web_(request);
+      break;
     case Route::INFO:
       this->send_info_(request);
       break;
@@ -260,8 +278,16 @@ void OpenTubeApi::handleRequest(AsyncWebServerRequest *request) {
   this->body_.clear();
 }
 
-void OpenTubeApi::send_info_(AsyncWebServerRequest *request) {
-  std::string json = "{\"product\":\"opentube\",\"api\":1,\"name\":";
+// The page is public, as it holds nothing but the program that asks for the password when it needs it.
+void DekatronApi::send_web_(AsyncWebServerRequest *request) {
+  auto *response = request->beginResponse(200, "text/html; charset=utf-8", WEB_INDEX_GZ, sizeof(WEB_INDEX_GZ));
+  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader("Cache-Control", "no-cache");
+  request->send(response);
+}
+
+void DekatronApi::send_info_(AsyncWebServerRequest *request) {
+  std::string json = "{\"product\":\"dekatron\",\"api\":1,\"name\":";
   append_json_string(json, App.get_name().c_str());
   json += ",\"auth\":";
   json += this->tubes_->settings().data().password_set ? "true" : "false";
@@ -269,7 +295,7 @@ void OpenTubeApi::send_info_(AsyncWebServerRequest *request) {
   this->reply_(request, 200, json);
 }
 
-void OpenTubeApi::send_state_(AsyncWebServerRequest *request) {
+void DekatronApi::send_state_(AsyncWebServerRequest *request) {
   auto &store = this->tubes_->store();
   const auto &settings = this->tubes_->settings().data();
   char name[Store::NAME_BYTES + 1];
@@ -332,7 +358,7 @@ void OpenTubeApi::send_state_(AsyncWebServerRequest *request) {
   this->reply_(request, 200, json);
 }
 
-void OpenTubeApi::send_store_(AsyncWebServerRequest *request) {
+void DekatronApi::send_store_(AsyncWebServerRequest *request) {
   auto &store = this->tubes_->store();
   if (!store.ready()) {
     this->error_(request, 404, "there is no store");
@@ -344,7 +370,7 @@ void OpenTubeApi::send_store_(AsyncWebServerRequest *request) {
   request->send(response);
 }
 
-void OpenTubeApi::finish_store_(AsyncWebServerRequest *request) {
+void DekatronApi::finish_store_(AsyncWebServerRequest *request) {
   auto &store = this->tubes_->store();
   const Store::Status status = store.finish_write();
   const uint32_t took_ms = millis() - this->upload_started_ms_;
@@ -366,7 +392,7 @@ void OpenTubeApi::finish_store_(AsyncWebServerRequest *request) {
   }
 }
 
-void OpenTubeApi::play_(AsyncWebServerRequest *request) {
+void DekatronApi::play_(AsyncWebServerRequest *request) {
   bool played = false;
   const bool valid = json::parse_json(this->body_, [&](JsonObject root) {
     played = this->tubes_->play_request(root["type"] | "effect", root["name"] | "", root["tubes"] | "all",
@@ -383,7 +409,7 @@ void OpenTubeApi::play_(AsyncWebServerRequest *request) {
   }
 }
 
-void OpenTubeApi::change_settings_(AsyncWebServerRequest *request) {
+void DekatronApi::change_settings_(AsyncWebServerRequest *request) {
   auto &settings = this->tubes_->settings();
   auto data = settings.data();  // changed as a copy, so a rejected request leaves nothing half done
   std::string problem;
@@ -468,7 +494,7 @@ void OpenTubeApi::change_settings_(AsyncWebServerRequest *request) {
   this->reply_(request, saved ? 200 : 500, json);
 }
 
-void OpenTubeApi::change_password_(AsyncWebServerRequest *request) {
+void DekatronApi::change_password_(AsyncWebServerRequest *request) {
   std::string password;
   bool present = false;
   const bool valid = json::parse_json(this->body_, [&](JsonObject root) {
@@ -502,5 +528,5 @@ void OpenTubeApi::change_password_(AsyncWebServerRequest *request) {
   this->reply_(request, saved ? 200 : 500, saved ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
-}  // namespace opentube_api
+}  // namespace dekatron_api
 }  // namespace esphome

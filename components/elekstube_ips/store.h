@@ -11,7 +11,7 @@
 namespace esphome {
 namespace elekstube_ips {
 
-// The store is one file in the data partition, in the format written by tools/opentube_store.py. It
+// The store is one file in the data partition, in the format written by tools/make_clips.py. It
 // holds the clock faces and the clips. The header goes last when writing, so a store that is cut
 // short or damaged never validates.
 

@@ -21,7 +21,7 @@ results = []
 def call(method, path, body=None, headers=None, password=None, timeout=60):
     headers = dict(headers or {})
     if method == "POST":
-        headers.setdefault("X-OpenTube", "1")
+        headers.setdefault("X-Dekatron", "1")
     if password is not None:
         headers["Authorization"] = "Basic " + base64.b64encode(f"admin:{password}".encode()).decode()
     if isinstance(body, (dict, list)):
@@ -51,14 +51,14 @@ def check(name, condition, detail=""):
 store = open(STORE, "rb").read()
 
 status, info, _ = call("GET", "/api/info")
-check("info is public", status == 200 and info.get("product") == "opentube", info)
+check("info is public", status == 200 and info.get("product") == "dekatron", info)
 
 status, state, _ = call("GET", "/api/state")
 check("state answers", status == 200 and "store" in state, state["store"])
 print("   free heap", state["free_heap"], "largest", state["largest_block"], "faces", state["faces"], flush=True)
 
-status, error, _ = call("POST", "/api/stop", headers={"X-OpenTube": ""})
-check("post without X-OpenTube header is refused", status == 400, (status, error))
+status, error, _ = call("POST", "/api/stop", headers={"X-Dekatron": ""})
+check("post without X-Dekatron header is refused", status == 400, (status, error))
 connection = http.client.HTTPConnection(HOST, 80, timeout=10)
 connection.request("POST", "/api/stop", body=b"x=1", headers={"Content-Type": "application/x-www-form-urlencoded"})
 response = connection.getresponse()
@@ -108,7 +108,7 @@ if not state["store"]["ready"]:
 
 # A client that goes away halfway.
 sock = socket.create_connection((HOST, 80), timeout=10)
-sock.sendall((f"POST /api/store HTTP/1.1\r\nHost: {HOST}\r\nX-OpenTube: 1\r\nContent-Type: application/octet-stream\r\n"
+sock.sendall((f"POST /api/store HTTP/1.1\r\nHost: {HOST}\r\nX-Dekatron: 1\r\nContent-Type: application/octet-stream\r\n"
               f"Content-Length: {len(store)}\r\n\r\n").encode() + store[: len(store) // 3])
 time.sleep(1)
 sock.close()
@@ -159,7 +159,7 @@ status, answer, _ = call("GET", "/api/info")
 check("info stays public and says auth", status == 200 and answer["auth"] is True, answer)
 status, answer, _ = call("POST", "/api/stop")
 check("stop needs the password", status == 401, (status, answer))
-for label, extra, expected in (("form post with the header but no password", {"X-OpenTube": "1"}, 401),
+for label, extra, expected in (("form post with the header but no password", {"X-Dekatron": "1"}, 401),
                                ("form post without the header", {}, 400)):
     connection = http.client.HTTPConnection(HOST, 80, timeout=10)
     connection.request("POST", "/api/stop", body=b"x=1", headers={"Content-Type": "application/x-www-form-urlencoded", **extra})

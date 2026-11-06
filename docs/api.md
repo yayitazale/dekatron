@@ -8,7 +8,7 @@ Everything lives under `/api/` and answers JSON, except the download of the stor
 
 By default there is no password. Setting one with `POST /api/password` makes every call but `GET /api/info` ask for it, as HTTP basic authentication. The user name is ignored.
 
-Calls that change something are `POST`s, and they must also carry the header `X-OpenTube` with any value. A web page of another site cannot add that header to a request it makes to the clock without a permission that this API never gives, so it cannot make your browser change the clock behind your back.
+Calls that change something are `POST`s, and they must also carry the header `X-Dekatron` with any value. A web page of another site cannot add that header to a request it makes to the clock without a permission that this API never gives, so it cannot make your browser change the clock behind your back.
 
 The clock speaks plain HTTP, so on a network you do not trust a password can be seen. Keep it on your home network.
 
@@ -16,6 +16,7 @@ The clock speaks plain HTTP, so on a network you do not trust a password can be 
 
 | Call | Purpose |
 |---|---|
+| `GET /` | The [web page](web.md) of the clock. Public |
 | `GET /api/info` | Who this is. Public: `product`, `api`, `name`, `auth` |
 | `GET /api/state` | State, settings, the faces and clips it has, memory and store status |
 | `GET /api/store` | The store as it is in flash, a file of up to 1152 KB |
@@ -42,7 +43,7 @@ Settings are kept across restarts.
 The store is one file made by `tools/make_clips.py` (see its help). It holds the clock faces and the clips, and a new one replaces the whole previous one.
 
 ```bash
-curl -X POST http://elekstube.local/api/store -H "X-OpenTube: 1" \
+curl -X POST http://elekstube.local/api/store -H "X-Dekatron: 1" \
      -H "Content-Type: application/octet-stream" --data-binary @store.bin
 ```
 

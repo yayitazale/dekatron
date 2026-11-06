@@ -2,5 +2,5 @@
 external_components:
   - source: ../components
 
-opentube_api:
+dekatron_api:
   tubes_id: tubes
