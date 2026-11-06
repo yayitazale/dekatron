@@ -146,6 +146,37 @@ check("boot animation off", status == 200 and answer["boot_animation"] is False,
 status, answer, _ = call("POST", "/api/settings", {"boot_animation": True})
 check("boot animation on, timezone kept", status == 200 and answer["timezone"].startswith("CET"), answer)
 
+# Controls of the clock: change, read back, refuse, and leave everything as it was.
+status, before, _ = call("GET", "/api/state")
+controls = before.get("controls", {})
+check("state has controls", status == 200 and "brightness" in controls and "leds" in controls, controls)
+
+
+def controls_after(body):
+    status, answer, _ = call("POST", "/api/controls", body)
+    time.sleep(1.5)
+    return status, call("GET", "/api/state")[1]["controls"]
+
+
+status, now = controls_after({"brightness": 60, "hour24": False, "transition": "Fade", "night": {"start": 22, "end": 6, "brightness": 30}})
+check("controls change", status == 200 and now["brightness"] == 60 and now["hour24"] is False and now["transition"] == "Fade"
+      and now["night"]["start"] == 22 and now["night"]["end"] == 6 and now["night"]["brightness"] == 30, now)
+status, now = controls_after({"leds": {"on": True, "color": "#3fb6ff", "brightness": 40, "effect": "Pulse"}})
+check("lights change", status == 200 and now["leds"]["on"] and now["leds"]["color"] == "#3fb6ff" and now["leds"]["brightness"] == 40
+      and now["leds"]["effect"] == "Pulse", now["leds"])
+status, now = controls_after({"leds": {"effect": "None", "on": False}})
+check("lights off with no effect in one call", status == 200 and now["leds"]["on"] is False and now["leds"]["effect"] == "None", now["leds"])
+for label, body in (("brightness too low", {"brightness": 1}), ("night hour 24", {"night": {"start": 24}}), ("bad color", {"leds": {"color": "blue"}}),
+                    ("unknown effect", {"leds": {"effect": "Nope"}}), ("unknown transition", {"transition": "Spin"}), ("not json", b"x"),
+                    ("leds brightness 0", {"leds": {"brightness": 0}})):
+    status, answer, _ = call("POST", "/api/controls", body, headers={"Content-Type": "application/json"} if isinstance(body, bytes) else None)
+    check(f"controls: {label} is refused", status in (400, 422), (status, answer))
+restore = {key: controls[key] for key in ("brightness", "hour24", "leading_zero", "transition") if key in controls}
+restore["night"] = {key: controls["night"][key] for key in ("start", "end", "brightness")}
+restore["leds"] = {"color": controls["leds"]["color"], "brightness": controls["leds"]["brightness"], "effect": controls["leds"]["effect"], "on": controls["leds"]["on"]}
+status, now = controls_after(restore)
+check("controls restored", status == 200 and now["brightness"] == controls["brightness"] and now["hour24"] == controls["hour24"], now)
+
 # Password.
 status, answer, _ = call("POST", "/api/password", {"password": "correct horse"})
 check("password set", status == 200, (status, answer))

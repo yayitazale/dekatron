@@ -120,6 +120,7 @@ switch:
       - lambda: id(tubes).set_displays_on(false);
   - platform: template
     name: 24-Hour Format
+    id: hour24
     icon: mdi:hours-24
     entity_category: config
     optimistic: true
@@ -130,6 +131,7 @@ switch:
       - lambda: id(tubes).set_hour_24(false);
   - platform: template
     name: Leading Zero
+    id: leading_zero
     icon: mdi:numeric-0-box-outline
     entity_category: config
     optimistic: true
@@ -140,6 +142,7 @@ switch:
       - lambda: id(tubes).set_leading_zero(false);
   - platform: template
     name: Night Mode
+    id: night_mode
     icon: mdi:weather-night
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
@@ -174,6 +177,7 @@ number:
     initial_value: 10
   - platform: template
     name: Display Brightness
+    id: display_brightness
     icon: mdi:brightness-6
     unit_of_measurement: "%"
     min_value: 5
@@ -186,6 +190,7 @@ number:
       - lambda: id(tubes).set_brightness(x);
   - platform: template
     name: Night Brightness
+    id: night_brightness
     icon: mdi:brightness-4
     entity_category: config
     unit_of_measurement: "%"
@@ -199,6 +204,7 @@ number:
       - lambda: id(tubes).set_night_brightness(x);
   - platform: template
     name: Night Start
+    id: night_start
     icon: mdi:clock-start
     entity_category: config
     unit_of_measurement: h
@@ -212,6 +218,7 @@ number:
       - lambda: id(tubes).set_night_start(x);
   - platform: template
     name: Night End
+    id: night_end
     icon: mdi:clock-end
     entity_category: config
     unit_of_measurement: h
@@ -240,6 +247,7 @@ select:
     initial_option: matrix
   - platform: template
     name: Digit Transition
+    id: digit_transition
     icon: mdi:transition
     optimistic: true
     restore_value: true

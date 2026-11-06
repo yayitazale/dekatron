@@ -3,6 +3,10 @@
 #include <string>
 
 #include "esphome/components/elekstube_ips/elekstube_ips.h"
+#include "esphome/components/light/light_state.h"
+#include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
+#include "esphome/components/switch/switch.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 
@@ -23,10 +27,21 @@ namespace dekatron_api {
 //   POST /api/stop      stops it
 //   POST /api/settings  {"timezone": "CET-1CEST,M3.5.0,M10.5.0/3", "boot_animation": true}
 //   POST /api/password  {"password": "..."}, and an empty one removes it
+//   POST /api/controls  the switches, sliders and lights of the clock, see docs/api.md
 class DekatronApi : public Component, public AsyncWebHandler {
  public:
   void set_web_server_base(web_server_base::WebServerBase *base) { this->base_ = base; }
   void set_tubes(elekstube_ips::ElekstubeIps *tubes) { this->tubes_ = tubes; }
+  void set_displays(switch_::Switch *entity) { this->displays_ = entity; }
+  void set_brightness(number::Number *entity) { this->brightness_ = entity; }
+  void set_night(switch_::Switch *entity) { this->night_ = entity; }
+  void set_night_brightness(number::Number *entity) { this->night_brightness_ = entity; }
+  void set_night_start(number::Number *entity) { this->night_start_ = entity; }
+  void set_night_end(number::Number *entity) { this->night_end_ = entity; }
+  void set_hour24(switch_::Switch *entity) { this->hour24_ = entity; }
+  void set_leading_zero(switch_::Switch *entity) { this->leading_zero_ = entity; }
+  void set_transition(select::Select *entity) { this->transition_ = entity; }
+  void set_leds(light::LightState *entity) { this->leds_ = entity; }
 
   void setup() override;
   void dump_config() override;
@@ -38,7 +53,7 @@ class DekatronApi : public Component, public AsyncWebHandler {
   bool isRequestHandlerTrivial() const override { return false; }
 
  protected:
-  enum class Route : uint8_t { NONE, WEB, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD };
+  enum class Route : uint8_t { NONE, WEB, INFO, STATE, STORE_GET, STORE_POST, PLAY, STOP, SETTINGS, PASSWORD, CONTROLS };
 
   Route route_(AsyncWebServerRequest *request) const;
   int precheck_(AsyncWebServerRequest *request, Route route);
@@ -54,9 +69,21 @@ class DekatronApi : public Component, public AsyncWebHandler {
   void play_(AsyncWebServerRequest *request);
   void change_settings_(AsyncWebServerRequest *request);
   void change_password_(AsyncWebServerRequest *request);
+  void change_controls_(AsyncWebServerRequest *request);
+  void append_controls_(std::string &json);
 
   web_server_base::WebServerBase *base_{nullptr};
   elekstube_ips::ElekstubeIps *tubes_{nullptr};
+  switch_::Switch *displays_{nullptr};
+  number::Number *brightness_{nullptr};
+  switch_::Switch *night_{nullptr};
+  number::Number *night_brightness_{nullptr};
+  number::Number *night_start_{nullptr};
+  number::Number *night_end_{nullptr};
+  switch_::Switch *hour24_{nullptr};
+  switch_::Switch *leading_zero_{nullptr};
+  select::Select *transition_{nullptr};
+  light::LightState *leds_{nullptr};
 
   // Requests are served one at a time, so one request's state can live here.
   mutable char url_[AsyncWebServerRequest::URL_BUF_SIZE];

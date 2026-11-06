@@ -24,6 +24,7 @@ The clock speaks plain HTTP, so on a network you do not trust a password can be 
 | `POST /api/play` | Starts an animation, with the JSON of the [MQTT play topic](../ha/README.md) |
 | `POST /api/stop` | Stops it |
 | `POST /api/settings` | Changes settings, see below |
+| `POST /api/controls` | Changes what the clock shows, see below |
 | `POST /api/password` | `{"password": "..."}` sets it, and an empty one removes it |
 
 Errors answer `{"error": "..."}` with a status of 400 (a missing header or empty request), 401 (password), 404, 409 (another store is being written) or 422 (the content is not valid).
@@ -37,6 +38,24 @@ Errors answer `{"error": "..."}` with a status of 400 (a missing header or empty
 - `face`: the name of a clock face, from `faces` in `/api/state`.
 
 Settings are kept across restarts.
+
+## Controls
+
+`GET /api/state` has a `controls` object, and `POST /api/controls` changes any part of it with the same shape. What the profile does not have is left out. A call that changes nothing valid answers 422 and changes nothing.
+
+```json
+{"displays": true, "brightness": 100,
+ "night": {"on": false, "start": 23, "end": 7, "brightness": 20},
+ "hour24": true, "leading_zero": true, "transition": "Off",
+ "leds": {"on": false, "color": "#ff0000", "brightness": 50, "effect": "None", "effects": ["None", "Pulse", "Rainbow"]}}
+```
+
+- `brightness`: 5 to 100. `night.brightness`: 0 to 100. `night.start` and `night.end`: hours, 0 to 23.
+- `transition`: `Off` or `Fade`.
+- `leds.color`: `#rrggbb`. `leds.brightness`: 1 to 100. `leds.effect`: one of `leds.effects`.
+- Turning the lights off (`"leds": {"on": false}`) does only that, and the rest of the same call is ignored.
+
+Clips with lights say `"leds": true` in `clips` of the state.
 
 ## Replacing the store
 

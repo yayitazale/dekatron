@@ -2,7 +2,10 @@
 
 #include <esp_random.h>
 
+#include <cmath>
 #include <cstring>
+#include <memory>
+#include <optional>
 
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
@@ -114,6 +117,7 @@ DekatronApi::Route DekatronApi::route_(AsyncWebServerRequest *request) const {
     if (strcmp(path, "stop") == 0) return Route::STOP;
     if (strcmp(path, "settings") == 0) return Route::SETTINGS;
     if (strcmp(path, "password") == 0) return Route::PASSWORD;
+    if (strcmp(path, "controls") == 0) return Route::CONTROLS;
   }
   return Route::NONE;
 }
@@ -271,6 +275,9 @@ void DekatronApi::handleRequest(AsyncWebServerRequest *request) {
     case Route::PASSWORD:
       this->change_password_(request);
       break;
+    case Route::CONTROLS:
+      this->change_controls_(request);
+      break;
     case Route::NONE:
       this->error_(request, 404, "no such call");
       break;
@@ -360,7 +367,9 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
     json += info.leds ? "true" : "false";
     json += "}";
   }
-  json += "]}";
+  json += "]";
+  this->append_controls_(json);
+  json += "}";
   this->reply_(request, 200, json);
 }
 
@@ -498,6 +507,233 @@ void DekatronApi::change_settings_(AsyncWebServerRequest *request) {
   json += data.boot_animation ? "true" : "false";
   json += '}';
   this->reply_(request, saved ? 200 : 500, json);
+}
+
+namespace {
+
+void append_hex_color(std::string &out, float red, float green, float blue) {
+  char text[10];
+  snprintf(text, sizeof(text), "\"#%02x%02x%02x\"", static_cast<int>(lroundf(red * 255)), static_cast<int>(lroundf(green * 255)),
+           static_cast<int>(lroundf(blue * 255)));
+  out += text;
+}
+
+const char *json_bool(bool value) { return value ? "true" : "false"; }
+
+}  // namespace
+
+// What the page can change, as the entities of the clock have it now. A part that is not set up is left out.
+void DekatronApi::append_controls_(std::string &json) {
+  json += ",\"controls\":{";
+  bool first = true;
+  const auto key = [&](const char *name) {
+    json += first ? "" : ",";
+    first = false;
+    json += '"';
+    json += name;
+    json += "\":";
+  };
+  if (this->displays_ != nullptr) {
+    key("displays");
+    json += json_bool(this->displays_->state);
+  }
+  if (this->brightness_ != nullptr) {
+    key("brightness");
+    append_number(json, lroundf(this->brightness_->state));
+  }
+  if (this->night_ != nullptr || this->night_start_ != nullptr) {
+    key("night");
+    json += '{';
+    bool inner = true;
+    const auto field = [&](const char *name) {
+      json += inner ? "" : ",";
+      inner = false;
+      json += '"';
+      json += name;
+      json += "\":";
+    };
+    if (this->night_ != nullptr) {
+      field("on");
+      json += json_bool(this->night_->state);
+    }
+    if (this->night_start_ != nullptr) {
+      field("start");
+      append_number(json, lroundf(this->night_start_->state));
+    }
+    if (this->night_end_ != nullptr) {
+      field("end");
+      append_number(json, lroundf(this->night_end_->state));
+    }
+    if (this->night_brightness_ != nullptr) {
+      field("brightness");
+      append_number(json, lroundf(this->night_brightness_->state));
+    }
+    json += '}';
+  }
+  if (this->hour24_ != nullptr) {
+    key("hour24");
+    json += json_bool(this->hour24_->state);
+  }
+  if (this->leading_zero_ != nullptr) {
+    key("leading_zero");
+    json += json_bool(this->leading_zero_->state);
+  }
+  if (this->transition_ != nullptr) {
+    key("transition");
+    append_json_string(json, this->transition_->current_option().c_str());
+  }
+  if (this->leds_ != nullptr) {
+    const auto &values = this->leds_->current_values;
+    key("leds");
+    json += "{\"on\":";
+    json += json_bool(values.is_on());
+    json += ",\"color\":";
+    append_hex_color(json, values.get_red(), values.get_green(), values.get_blue());
+    json += ",\"brightness\":";
+    append_number(json, lroundf(values.get_brightness() * 100));
+    json += ",\"effect\":";
+    append_json_string(json, this->leds_->get_effect_name().c_str());
+    json += ",\"effects\":[\"None\"";
+    for (auto *effect : this->leds_->get_effects()) {
+      json += ',';
+      append_json_string(json, effect->get_name().c_str());
+    }
+    json += "]}";
+  }
+  json += '}';
+}
+
+namespace {
+
+// A change that the page asked for, kept until the main loop can apply it: the entities of ESPHome
+// belong to that loop, and this runs on the thread of the web server.
+struct ControlChange {
+  std::optional<bool> displays, night_on, hour24, leading_zero, leds_on;
+  std::optional<int> brightness, night_start, night_end, night_brightness, leds_brightness;
+  std::optional<std::string> transition, leds_effect;
+  std::optional<elekstube_ips::Rgb> leds_color;
+};
+
+}  // namespace
+
+void DekatronApi::change_controls_(AsyncWebServerRequest *request) {
+  auto change = std::make_shared<ControlChange>();
+  std::string problem;
+  const auto number = [&](JsonVariant value, int low, int high, const char *what, std::optional<int> *out) {
+    if (value.isNull()) return;
+    if (!value.is<int>() || value.as<int>() < low || value.as<int>() > high) {
+      problem = std::string(what) + " must be a number from " + std::to_string(low) + " to " + std::to_string(high);
+      return;
+    }
+    *out = value.as<int>();
+  };
+  const auto flag = [&](JsonVariant value, const char *what, std::optional<bool> *out) {
+    if (value.isNull()) return;
+    if (!value.is<bool>()) {
+      problem = std::string(what) + " must be true or false";
+      return;
+    }
+    *out = value.as<bool>();
+  };
+  const bool valid = json::parse_json(this->body_, [&](JsonObject root) {
+    flag(root["displays"], "displays", &change->displays);
+    number(root["brightness"], 5, 100, "brightness", &change->brightness);
+    flag(root["hour24"], "hour24", &change->hour24);
+    flag(root["leading_zero"], "leading_zero", &change->leading_zero);
+    JsonObject night = root["night"];
+    if (!night.isNull()) {
+      flag(night["on"], "night.on", &change->night_on);
+      number(night["start"], 0, 23, "night.start", &change->night_start);
+      number(night["end"], 0, 23, "night.end", &change->night_end);
+      number(night["brightness"], 0, 100, "night.brightness", &change->night_brightness);
+    }
+    JsonVariant transition = root["transition"];
+    if (transition.is<const char *>()) {
+      const std::string name = transition.as<const char *>();
+      if (name != "Off" && name != "Fade") problem = "transition must be Off or Fade";
+      change->transition = name;
+    }
+    JsonObject leds = root["leds"];
+    if (!leds.isNull()) {
+      flag(leds["on"], "leds.on", &change->leds_on);
+      number(leds["brightness"], 1, 100, "leds.brightness", &change->leds_brightness);
+      JsonVariant color = leds["color"];
+      if (color.is<const char *>()) {
+        elekstube_ips::Rgb rgb;
+        if (elekstube_ips::parse_color(color.as<const char *>(), &rgb)) {
+          change->leds_color = rgb;
+        } else {
+          problem = "leds.color must be like #ffb020";
+        }
+      }
+      JsonVariant effect = leds["effect"];
+      if (effect.is<const char *>()) {
+        std::string name = effect.as<const char *>();
+        bool known = name == "None";
+        if (this->leds_ != nullptr) {
+          for (auto *candidate : this->leds_->get_effects()) known = known || name == candidate->get_name();
+        }
+        if (known) {
+          change->leds_effect = name;
+        } else {
+          problem = "leds.effect is not one of the effects in the state";
+        }
+      }
+    }
+    return true;
+  });
+  if (!valid) {
+    this->error_(request, 400, "the body is not JSON");
+    return;
+  }
+  if (!problem.empty()) {
+    this->error_(request, 422, problem.c_str());
+    return;
+  }
+  this->defer([this, change]() {
+    const auto set_number = [](number::Number *entity, std::optional<int> value) {
+      if (entity != nullptr && value) {
+        auto call = entity->make_call();
+        call.set_value(static_cast<float>(*value));
+        call.perform();
+      }
+    };
+    const auto set_switch = [](switch_::Switch *entity, std::optional<bool> value) {
+      if (entity != nullptr && value) {
+        if (*value) {
+          entity->turn_on();
+        } else {
+          entity->turn_off();
+        }
+      }
+    };
+    set_switch(this->displays_, change->displays);
+    set_number(this->brightness_, change->brightness);
+    set_switch(this->night_, change->night_on);
+    set_number(this->night_start_, change->night_start);
+    set_number(this->night_end_, change->night_end);
+    set_number(this->night_brightness_, change->night_brightness);
+    set_switch(this->hour24_, change->hour24);
+    set_switch(this->leading_zero_, change->leading_zero);
+    if (this->transition_ != nullptr && change->transition) {
+      auto call = this->transition_->make_call();
+      call.set_option(*change->transition);
+      call.perform();
+    }
+    if (this->leds_ != nullptr && (change->leds_on || change->leds_brightness || change->leds_color || change->leds_effect)) {
+      auto call = this->leds_->make_call();
+      if (change->leds_on && !*change->leds_on) {
+        call.set_state(false);  // turning off is all it does, as the rest would be lost with it
+      } else {
+        if (change->leds_on) call.set_state(true);
+        if (change->leds_brightness) call.set_brightness(*change->leds_brightness / 100.0f);
+        if (change->leds_color) call.set_rgb(change->leds_color->r / 255.0f, change->leds_color->g / 255.0f, change->leds_color->b / 255.0f);
+        if (change->leds_effect) call.set_effect(*change->leds_effect);
+      }
+      call.perform();
+    }
+  });
+  this->reply_(request, 200, "{\"ok\":true}");
 }
 
 void DekatronApi::change_password_(AsyncWebServerRequest *request) {

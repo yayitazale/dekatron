@@ -100,3 +100,23 @@ code { background: var(--raised); padding: 1px 6px; border-radius: 6px; font-siz
 .between { justify-content: space-between; flex-wrap: nowrap; }
 .big { font-size: 17px; font-weight: 700; }
 .between .btn { flex: none; }
+.sw { width: 48px; height: 28px; border-radius: 999px; border: 0; background: var(--line); position: relative; flex: none; padding: 0; transition: background .15s; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
+.sw.on { background: var(--accent); }
+.sw.on::after { left: 23px; }
+.swatch { width: 32px; height: 32px; border-radius: 10px; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line); padding: 0; flex: none; }
+.swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.slider { flex-wrap: nowrap; }
+.slider .muted { width: 74px; flex: none; }
+.slider .value { width: 42px; text-align: right; font-size: 13px; color: var(--muted); flex: none; }
+.card .row.between + .row, .card .row.between + .slider { margin-top: 14px; }
+input[type=color] { width: 32px; height: 32px; padding: 0; border: 3px solid var(--surface); border-radius: 10px; box-shadow: 0 0 0 1px var(--line); flex: none; background: none; }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 6px; }
+input[type=color]::-moz-color-swatch { border: 0; border-radius: 6px; }
+input[type=range] { -webkit-appearance: none; appearance: none; height: 28px; background: transparent; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
+input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); }
+.card .row.between + .row.between, .card .row.between + div { margin-top: 14px; }

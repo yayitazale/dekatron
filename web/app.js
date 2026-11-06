@@ -168,7 +168,7 @@
   const signature = () => JSON.stringify([
     app.view, app.dirty, app.working && app.working.entries.map((entry) => entry.name),
     app.state && [app.state.faces, app.state.clips, app.state.settings, app.state.store.size, app.state.store.status,
-      /^countdown/.test(app.state.animation)],
+      /^countdown/.test(app.state.animation), app.state.controls],
   ]);
 
   async function refresh() {
@@ -301,6 +301,64 @@
   const card = (title, ...content) => h("section", { class: "card" },
     h("h2", {}, Array.isArray(title) ? [title[0], h("span", {}, title[1])] : title), content);
 
+  // ---- the controls of the clock ---------------------------------------------------------------
+
+  const control = (body) => act(() => call("POST", "/api/controls", body));
+
+  const toggle = (on, label, change) => h("button", { class: "sw" + (on ? " on" : ""), role: "switch", "aria-checked": String(on), "aria-label": label, onclick: () => change(!on) });
+
+  // The number is shown while the slider moves, and sent when it is let go.
+  function slider(label, value, low, high, step, change) {
+    const shown = h("span", { class: "value" }, `${value}%`);
+    const input = h("input", { type: "range", min: low, max: high, step, value, "aria-label": label });
+    input.addEventListener("input", () => { shown.textContent = `${input.value}%`; });
+    input.addEventListener("change", () => change(+input.value));
+    return h("div", { class: "row slider" }, h("span", { class: "muted" }, label), input, shown);
+  }
+
+  const SWATCHES = ["#ffb020", "#ff7a59", "#ff5fa8", "#8b7bff", "#3fb6ff", "#4fe0a0", "#ffffff"];
+
+  function cardDisplays(controls) {
+    if (controls.displays === undefined && controls.brightness === undefined) return "";
+    return card("Displays",
+      controls.displays === undefined ? "" : h("div", { class: "row between" }, h("span", {}, "On"), toggle(controls.displays, "Displays", (value) => control({ displays: value }))),
+      controls.brightness === undefined ? "" : slider("Brightness", controls.brightness, 5, 100, 5, (value) => control({ brightness: value })));
+  }
+
+  function cardLights(controls) {
+    const leds = controls.leds;
+    if (!leds) return "";
+    const picker = h("input", { type: "color", value: leds.color, "aria-label": "Custom color" });
+    picker.addEventListener("change", () => control({ leds: { on: true, color: picker.value } }));
+    return card("Lights",
+      h("div", { class: "row between" }, h("span", {}, "On"), toggle(leds.on, "Lights", (value) => control({ leds: { on: value } }))),
+      h("div", { class: "row" }, SWATCHES.map((color) =>
+        h("button", { class: "swatch" + (leds.on && leds.color === color ? " on" : ""), style: `background:${color}`, "aria-label": `Color ${color}`, onclick: () => control({ leds: { on: true, color } }) })), picker),
+      slider("Brightness", leds.brightness, 1, 100, 1, (value) => control({ leds: { on: true, brightness: value } })),
+      leds.effects.length > 1 ? h("div", { class: "chips", style: "margin-top:12px" }, leds.effects.map((name) =>
+        h("button", { class: "chip" + (leds.effect === name ? " on" : ""), onclick: () => control({ leds: { effect: name } }) }, name))) : "");
+  }
+
+  function cardDisplay(controls) {
+    const night = controls.night;
+    if (controls.hour24 === undefined && controls.transition === undefined && !night) return "";
+    const hours = (value, change, label) => {
+      const select = h("select", { "aria-label": label }, [...Array(24).keys()].map((hour) => h("option", { value: hour, selected: hour === value }, `${String(hour).padStart(2, "0")}:00`)));
+      select.addEventListener("change", () => change(+select.value));
+      return select;
+    };
+    return card("Display",
+      controls.hour24 === undefined ? "" : h("div", { class: "row between" }, h("span", {}, "24-hour format"), toggle(controls.hour24, "24-hour format", (value) => control({ hour24: value }))),
+      controls.leading_zero === undefined ? "" : h("div", { class: "row between" }, h("span", {}, "Zero before the hour"), toggle(controls.leading_zero, "Zero before the hour", (value) => control({ leading_zero: value }))),
+      controls.transition === undefined ? "" : h("div", { class: "row between" }, h("span", {}, "Digit change"),
+        h("span", { class: "chips" }, ["Off", "Fade"].map((name) => h("button", { class: "chip" + (controls.transition === name ? " on" : ""), onclick: () => control({ transition: name }) }, name)))),
+      !night ? "" : h("div", {},
+        h("div", { class: "row between" }, h("span", {}, "Night mode"), toggle(night.on, "Night mode", (value) => control({ night: { on: value } }))),
+        night.start === undefined ? "" : h("div", { class: "row" }, h("span", { class: "muted" }, "From"), hours(night.start, (value) => control({ night: { start: value } }), "From"),
+          h("span", { class: "muted" }, "to"), hours(night.end, (value) => control({ night: { end: value } }), "To")),
+        night.brightness === undefined ? "" : slider("Dimmed to", night.brightness, 0, 100, 5, (value) => control({ night: { brightness: value } }))));
+  }
+
   function pendingBar() {
     if (!app.dirty) return "";
     return h("div", { class: "bar" }, h("span", {}, "The clock does not have these changes yet"), h("span", { class: "row" },
@@ -345,6 +403,8 @@
     const running = /^countdown/.test(state.animation);
 
     return h("div", {},
+      cardDisplays(state.controls || {}),
+      cardLights(state.controls || {}),
       card(["Clock face", `${MAX_FACES - faces.length} of ${MAX_FACES} free`], h("div", { class: "slots" }, slots),
         h("div", { class: "names" }, [...Array(MAX_FACES).keys()].map((index) => h("span", {}, faces[index] ? faces[index].name : "free")))),
       card("Countdown",
@@ -653,6 +713,7 @@
           h("button", { class: "btn primary", onclick: save }, "Save"),
           detected ? h("button", { class: "btn", onclick: () => { store("dekatron-zone", detected.id); act(() => call("POST", "/api/settings", { timezone: detected.tz }), "Saved"); } }, `Use ${detected.id}`) : ""),
         h("p", { class: "muted" }, current || "Not set")),
+      cardDisplay(state.controls || {}),
       card("Password",
         h("p", { class: "muted" }, state.settings.password ? "A password is set." : "Without one, anybody on your network can change the clock."),
         h("div", { class: "row" }, fresh,

@@ -4,3 +4,13 @@ external_components:
 
 dekatron_api:
   tubes_id: tubes
+  displays_id: displays
+  brightness_id: display_brightness
+  night_id: night_mode
+  night_brightness_id: night_brightness
+  night_start_id: night_start
+  night_end_id: night_end
+  hour24_id: hour24
+  leading_zero_id: leading_zero
+  transition_id: digit_transition
+  leds_id: leds
