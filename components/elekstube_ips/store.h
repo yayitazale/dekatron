@@ -23,8 +23,9 @@ static constexpr uint8_t SCENE_IMAGES = 0;
 static constexpr uint32_t SCENE_PALETTE_BYTES = 512;
 // A track of lights has the six LEDs, three bytes each, for every frame. It is the last image of the table.
 static constexpr uint32_t LED_FRAME_BYTES = 18;
-// A clock face is ten JPEG images, one per digit.
+// A clock face is ten JPEG images, one per digit, and may have an eleventh: its author and license as JSON.
 static constexpr uint8_t FACE_IMAGES = 10;
+static constexpr uint8_t FACE_INFO_IMAGES = 11;
 
 // A theme entry holds the name of the theme and, as JSON in its one image, its author and license.
 enum class EntryKind : uint8_t { CLIP = 0, FACE = 1, THEME = 2 };

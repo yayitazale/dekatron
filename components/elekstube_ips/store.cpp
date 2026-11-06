@@ -101,7 +101,7 @@ static bool entry_is_valid(const uint8_t *base, uint32_t total, const Entry &ent
   if (entry.kind > static_cast<uint8_t>(EntryKind::THEME) || entry.frames == 0 || entry.name[0] == '\0') {
     return false;
   }
-  if (face ? (entry.images_per_frame != FACE_IMAGES || entry.frames != 1)
+  if (face ? ((entry.images_per_frame != FACE_IMAGES && entry.images_per_frame != FACE_INFO_IMAGES) || entry.frames != 1)
       : theme ? (entry.images_per_frame != 1 || entry.frames != 1)
               : (entry.fps == 0 || (entry.images_per_frame != 1 && entry.images_per_frame != 6 &&
                                     entry.images_per_frame != SCENE_IMAGES))) {
