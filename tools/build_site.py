@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build the pages of the static site, which GitHub Pages serves.
 
 Usage: python tools/build_site.py

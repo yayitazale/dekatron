@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The clock reads POSIX timezones and has no table of names, so the page translates. These are common
 // zones, each with the rule that has applied to it for years. Anything else can be typed in by hand.
 const DekatronZones = (() => {

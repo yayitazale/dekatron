@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The HTTP API of the clock, served by the web server that ESPHome already runs."""
 
 import esphome.codegen as cg

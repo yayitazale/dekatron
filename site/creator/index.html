@@ -10,7 +10,9 @@
 </head>
 <body>
 <div id="app"></div>
-<script>// The store of the clock, as tools/make_clips.py writes it and components/elekstube_ips/store.cpp reads it.
+<script>// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// The store of the clock, as tools/make_clips.py writes it and components/elekstube_ips/store.cpp reads it.
 // Everything is little endian: a header, one entry per face or clip, the tables of images, and the images.
 const DekatronStore = (() => {
   const MAGIC = [0x45, 0x4b, 0x53, 0x54]; // EKST
@@ -191,6 +193,8 @@ const DekatronStore = (() => {
   return api;
 })();
 
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Scenes for the page, the way tools/make_scenes.py makes them: an animation that crosses the six tubes,
 // stored as only the rectangles that change between frames, with a color for each light on every frame.
 // tests/scene.test.js checks this against the Python code, so the two write the same bytes.
@@ -613,6 +617,8 @@ const DekatronScene = (() => {
   return api;
 })();
 
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Makes the animations of a theme from files of the user: an animated GIF, WebP or PNG, a video, or a
 // numbered series of images. Each is fitted to the strip that crosses the six tubes, shrunk to the colors
 // that the tubes can show, and stored as a scene, with a light for each tube if asked.
@@ -786,6 +792,8 @@ const DekatronCreator = (() => {
   return { makeClips };
 })();
 
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The theme creator as a page of its own. It runs in the browser and sends nothing anywhere: it makes a
 // theme file, which the page of the clock takes with Change theme.
 (() => {

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Exercises the HTTP API of a real clock, which tests/ cannot do without one.
 
 Usage: python tools/check_api.py HOST STORE_FILE [REPORT_FILE]

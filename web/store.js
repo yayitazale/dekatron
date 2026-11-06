@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The store of the clock, as tools/make_clips.py writes it and components/elekstube_ips/store.cpp reads it.
 // Everything is little endian: a header, one entry per face or clip, the tables of images, and the images.
 const DekatronStore = (() => {

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Draw the scenes of the default theme and pack them as a theme file.
 
 A scene is a sequence of canvases that cross the tubes. Like a GIF, it stores only the rectangles

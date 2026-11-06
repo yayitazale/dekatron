@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Serve the web page from web/ on this computer, sending /api/ calls to a real clock.
 
 Usage: python tools/dev_web.py CLOCK_HOST [--port 8000] [--files FOLDER]

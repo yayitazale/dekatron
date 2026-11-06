@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Image helpers for the tools that build the store of the clock.
 
 A face is a folder with one image per digit, named 0 to 9 with any image extension. The images are

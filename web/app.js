@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The page of the clock. It runs in the browser, and everything it does goes through the API in docs/api.md.
 (() => {
   "use strict";

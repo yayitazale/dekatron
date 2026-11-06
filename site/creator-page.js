@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Joseba Egia and Dekatron contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 // The theme creator as a page of its own. It runs in the browser and sends nothing anywhere: it makes a
 // theme file, which the page of the clock takes with Change theme.
 (() => {

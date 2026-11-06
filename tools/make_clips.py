@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Joseba Egia and Dekatron contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build the store of the clock: its clock faces and clips.
 
 Usage: python tools/make_clips.py store.bin --face Marble=faces/marble --clip alarm=alarm.gif --fps 15
