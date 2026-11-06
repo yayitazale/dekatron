@@ -55,7 +55,12 @@
   const fit = h("select", { class: "grow", "aria-label": "Picture on the strip" },
     [h("option", { value: "fill" }, "Fill the strip, cropping"), h("option", { value: "fit" }, "Fit inside, with black around")]);
   const lights = h("select", { class: "grow", "aria-label": "Lights" },
-    [h("option", { value: "follow" }, "Lights follow the picture"), h("option", { value: "off" }, "No lights")]);
+    [h("option", { value: "follow" }, "Lights follow the picture"), h("option", { value: "flashes" }, "Only the flashes that I add"), h("option", { value: "off" }, "No lights")]);
+  const still = h("select", { class: "grow", "aria-label": "What the lights follow" },
+    [h("option", { value: "all" }, "Follow the whole picture"), h("option", { value: "still" }, "Follow what moves over the first picture")]);
+  const gain = h("input", { type: "range", min: 20, max: 200, value: 100, "aria-label": "Strength of the lights", class: "grow" });
+  const quick = h("input", { type: "range", min: 10, max: 90, value: 55, "aria-label": "How quickly the lights follow", class: "grow" });
+  const preview = DekatronPreview.build({ h });
   const result = h("div", {});
 
   const picks = ROLES.map(([role, label]) => {
@@ -75,15 +80,61 @@
     return pick;
   });
 
+  // The animations as the form describes them, or a word about what is missing.
+  function rolesFromForm() {
+    const missing = picks.find((pick) => !pick.files);
+    if (missing) throw new Error(`Choose a file for ${missing.label}`);
+    return picks.map((pick) => ({
+      name: pick.role, label: pick.label, files: pick.files, fps: Math.min(30, Math.max(1, +pick.fps.value || 15)),
+      seconds: Math.min(60, Math.max(1, +pick.seconds.value || 8)), fit: fit.value === "fit", lights: lights.value !== "off",
+    }));
+  }
+
+  // What the preview was made from: when this changes, the preview and its flashes no longer match the form.
+  const settingsKey = () => JSON.stringify([
+    picks.map((pick) => [pick.files && pick.files.map((file) => [file.name, file.size, file.lastModified]), pick.fps.value, pick.seconds.value]),
+    fit.value, lights.value, still.value, gain.value, quick.value,
+  ]);
+  let previewKey = null;
+
+  // Reads the animations to play them on the six tubes and work out the lights. The flashes of the user are kept
+  // as long as the form does not change.
+  async function makePreview() {
+    const roles = rolesFromForm();
+    const progress = h("progress", { max: 1, value: 0 });
+    const text = h("p", { class: "muted" }, "Reading the files…");
+    const stop = { now: false };
+    const shown = dialog("Preparing the preview…", h("div", {}, progress, text), [h("button", { class: "btn", onclick: () => { stop.now = true; } }, "Stop")]);
+    try {
+      const options = { gain: gain.value / 100, smoothing: quick.value / 100, still: still.value === "still" };
+      const data = [];
+      for (const [number, role] of roles.entries()) {
+        data.push({ role: role.name, label: role.label, ...(await DekatronCreator.previewRole(role, options, (message, fraction) => { text.textContent = message; progress.value = (number + fraction) / roles.length; }, stop)) });
+      }
+      preview.load(data, lights.value !== "flashes");
+      previewKey = settingsKey();
+      preview.element.scrollIntoView({ behavior: "smooth", block: "start" });
+    } finally {
+      shown.close();
+    }
+  }
+
   async function make() {
     result.replaceChildren();
     if (!name.value.trim()) return toast("Give the theme a name", true);
-    const missing = picks.find((pick) => !pick.files);
-    if (missing) return toast(`Choose a file for ${missing.label}`, true);
-    const roles = picks.map((pick) => ({
-      name: pick.role, label: pick.label, files: pick.files, fps: Math.min(30, Math.max(1, +pick.fps.value || 15)),
-      seconds: Math.min(60, Math.max(1, +pick.seconds.value || 8)), fit: fit.value === "fit", lights: lights.value === "follow",
-    }));
+    let roles;
+    try {
+      roles = rolesFromForm();
+      // Unless there are no lights, the file takes the ones of the preview, with the flashes the user added.
+      if (lights.value !== "off") {
+        if (previewKey !== settingsKey()) await makePreview();
+        const final = preview.leds();
+        for (const role of roles) role.leds = final[role.name];
+      }
+    } catch (error) {
+      return toast(error.message === "Stopped" ? "Stopped" : error.message, true);
+    }
+    preview.stop();
     const progress = h("progress", { max: 1, value: 0 });
     const text = h("p", { class: "muted" }, "Reading the files…");
     const stop = { now: false };
@@ -112,9 +163,14 @@
       h("p", { class: "muted" }, "A theme is four animations: when the clock starts, while it connects, when it is connected and at the end of a countdown. Use an animated GIF, WebP or PNG, a video, or a numbered series of images for each. The animation crosses the six tubes as one wide strip, nearly six times as wide as tall. Nothing leaves your computer."),
       h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about), h("div", { class: "row" }, h("span", { class: "muted" }, "License"), license),
       h("div", { class: "row" }, fit), h("div", { class: "row" }, lights),
+      h("div", { class: "row" }, still),
+      h("div", { class: "row" }, h("span", { class: "muted" }, "Strength"), gain, h("span", { class: "muted" }, "Speed"), quick),
       h("div", {}, picks.map((pick) => pick.row)),
-      h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn primary", onclick: make }, "Create")),
+      h("div", { class: "row", style: "margin-top:14px" },
+        h("button", { class: "btn", onclick: () => makePreview().catch((error) => toast(error.message === "Stopped" ? "Stopped" : error.message, true)) }, "Preview and lights"),
+        h("button", { class: "btn primary", onclick: make }, "Create")),
       result),
+    preview.element,
     card("Tips",
       h("p", { class: "muted" }, "Few colors and small movements make small files. The clock has room for about 1 MB of faces and theme together, and this page keeps your theme under 880 KB so four faces still fit. If it is too big, use fewer seconds or fewer frames per second."),
       h("p", { class: "muted" }, "The lights take the color of what is on each tube, and the tubes are lit left to right, so put the action where the tubes are.")),

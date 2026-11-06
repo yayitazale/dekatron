@@ -125,7 +125,39 @@ const DekatronCreator = (() => {
     return { data, width, height };
   };
 
-  // roles: [{ name, files, fps, seconds, fit, lights }] for the animations that are new. Gives
+  // The frames of one animation to look at, and the lights that its picture asks for. options has `gain` (how
+  // strong the lights are, 1 is as the picture asks), `smoothing` (0 to 1, how quickly they follow, higher is
+  // quicker) and `still` (true to follow only what moves over the first picture). Gives {fps, total, frames, auto},
+  // where frames are half the size of the strip, and auto is 18 bytes of lights for each frame.
+  async function previewRole(role, options, report, stop = {}) {
+    const source = await openSource(role.files);
+    try {
+      const total = framesOf(source, role);
+      const frames = [];
+      const auto = new Uint8Array(total * 18);
+      let follow = null;
+      for await (const [k, , strip] of strips(source, role)) {
+        if (stop.now) throw new Error("Stopped");
+        if (k === 0) {
+          const background = options.still ? { data: Uint8ClampedArray.from(strip.data) } : null;
+          follow = S.ledFollower(background, 0.12, options.smoothing);
+        }
+        auto.set(follow(strip), k * 18);
+        frames.push(half(strip));
+        if (k % 3 === 0) {
+          report(`${role.label}: frame ${k + 1} of ${total}`, (k + 1) / total);
+          await idle();
+        }
+      }
+      return { fps: role.fps, total, frames, auto: options.gain === 1 ? auto : DekatronLights.scale(auto, options.gain) };
+    } finally {
+      source.close();
+    }
+  }
+
+  // roles: [{ name, files, fps, seconds, fit, lights, leds }] for the animations that are new. `leds` are lights
+  // that are already made (from previewRole and the flashes of the user), 18 bytes for each frame, and are used
+  // in place of the lights that follow the picture. Gives
   // { clips: [entries], bytes } and calls report(text, fraction) as it goes. `stop.now` ends it early.
   async function makeClips(roles, capacity, report, stop = {}) {
     const sources = [];
@@ -146,7 +178,7 @@ const DekatronCreator = (() => {
       let bytes = 0;
       for (const [index, role] of roles.entries()) {
         const encoder = S.sceneEncoder(entries);
-        const follow = role.lights ? S.ledFollower() : null;
+        const follow = role.lights && !role.leds ? S.ledFollower() : null;
         const lights = [];
         for await (const [k, total, strip] of strips(sources[index], role)) {
           if (stop.now) throw new Error("Stopped");
@@ -158,8 +190,12 @@ const DekatronCreator = (() => {
           }
           if (bytes + encoder.size() > capacity) throw new Error(`${role.label} is too big for the clock. Try fewer seconds, fewer frames per second, or something with less moving`);
         }
-        const leds = follow ? new Uint8Array(lights.length * 18) : null;
+        let leds = follow ? new Uint8Array(lights.length * 18) : null;
         if (follow) lights.forEach((frame, i) => leds.set(frame, i * 18));
+        if (role.leds) {
+          if (role.leds.length !== framesOf(sources[index], role) * 18) throw new Error(`The lights of ${role.label} do not fit its frames. Press Preview again`);
+          leds = role.leds;
+        }
         const scene = encoder.finish(leds);
         bytes += encoder.size() + (leds ? leds.length : 0);
         clips.push(S.toClip(role.name, role.fps, scene));
@@ -170,5 +206,5 @@ const DekatronCreator = (() => {
     }
   }
 
-  return { makeClips };
+  return { makeClips, previewRole };
 })();

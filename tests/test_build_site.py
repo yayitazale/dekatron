@@ -14,7 +14,7 @@ class BuildSiteTest(unittest.TestCase):
         page = build_site.build_creator()
         for marker in ("/*STYLE*/", "/*SCRIPT*/"):
             self.assertNotIn(marker, page)
-        for name in ("DekatronStore", "DekatronScene", "DekatronCreator", "DekatronFaces"):
+        for name in ("DekatronStore", "DekatronScene", "DekatronCreator", "DekatronFaces", "DekatronLights", "DekatronPreview"):
             self.assertIn(name, page)
 
     def test_the_page_in_the_site_is_the_current_one(self):

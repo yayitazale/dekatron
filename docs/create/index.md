@@ -6,6 +6,8 @@ The [creator](/creator/index.html){target="_self"} is a page that runs in your b
 
 Give it, for each of the four animations, an animated GIF, WebP or PNG, a video, or a numbered series of images. It fits each picture to the strip that crosses the six tubes (1370 × 240 pixels), chooses one palette of 255 colors for the four, stores only what changes between frames, and can give each tube's light the color of its picture. Then it downloads `name.theme.bin`.
 
+- **Preview and lights:** press it to see the animation on the six tubes, with the six lights under them and a strip that shows the lights over time. The lights follow the picture, as strong and as quick as you set, either from the whole picture or only from what moves over the first one. Or start from dark and use only your own **flashes**.
+- **Flashes:** move the slider to a moment, choose a tube (or all), a color, how long it lasts, how strong it is and how softly it rises and falls, and add it. It is added to the lights of the picture, or replaces them. What you see is what goes into the file.
 - Few colors and small movements make small files. A theme may take at most 800 KB so that four faces still fit.
 - The tubes are 135 pixels wide and start 247 pixels apart, tube 5 on the left, and the 112 pixels between them are never shown.
 - Give it your name and a license. The [gallery](/themes) takes `CC-BY-SA-4.0`.
