@@ -1,0 +1,51 @@
+/* The landing page of the site. It reuses the colors, cards and buttons of web/style.css. */
+body.site { max-width: none; padding: 0; }
+.site main, .site footer, .site .top { max-width: 760px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+.site .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding-top: 10px; padding-bottom: 10px; background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(8px); max-width: none; }
+.site .top .brand { color: var(--ink); text-decoration: none; }
+.site .links { display: flex; gap: 14px; margin-left: auto; overflow-x: auto; white-space: nowrap; font-size: 14px; }
+.site .links a { color: var(--ink2); text-decoration: none; }
+.site .links a:hover { color: var(--accent); }
+.site .mode { flex: none; }
+.site main { padding-bottom: 40px; }
+.site a { color: var(--accent); }
+.site a.btn { color: var(--ink); }
+.site a.btn.primary { color: var(--on-accent); }
+.site section { scroll-margin-top: 64px; margin-top: 34px; }
+.site .hero { margin-top: 28px; }
+.kicker { color: var(--accent); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+.site h1 { font-size: clamp(32px, 9vw, 52px); line-height: 1.05; margin: 8px 0 14px; letter-spacing: -.5px; }
+.lead { font-size: 18px; color: var(--ink2); margin-bottom: 14px; }
+.wip { background: var(--soft); border-radius: 14px; padding: 10px 14px; margin-bottom: 18px; font-size: 14px; }
+.site h2.num { font-size: 22px; text-transform: none; letter-spacing: 0; color: var(--ink); justify-content: flex-start; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.site h2.num span { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .1em; }
+.site h3 { margin: 16px 0 6px; font-size: 16px; }
+.site h3:first-child { margin-top: 0; }
+.site .card p + p { margin-top: 10px; }
+.site section > p.muted { margin-bottom: 14px; }
+.site section > .card + .card { margin-top: 14px; }
+.two { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 12px; }
+.yes, .no { font-weight: 750; margin-bottom: 4px !important; }
+.yes { color: var(--leaf); }
+.no { color: var(--bad); }
+.steps { display: grid; gap: 14px; grid-template-columns: 1fr; margin-bottom: 14px; }
+.steps .card { margin: 0; }
+.steps b { display: block; margin-bottom: 6px; }
+.notice { background: var(--soft); box-shadow: none; }
+.gallery { display: grid; gap: 14px; grid-template-columns: 1fr; margin-bottom: 14px; }
+.theme { padding: 0; overflow: hidden; margin: 0; }
+.theme img { display: block; width: 100%; background: #050505; aspect-ratio: 685 / 120; object-fit: cover; }
+.theme .body { padding: 14px 18px 18px; }
+.theme .name { font-size: 18px; font-weight: 700; }
+.theme .row { margin-top: 12px; }
+pre { background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+code { background: var(--raised); border-radius: 6px; padding: 1px 6px; font-size: .9em; overflow-wrap: anywhere; }
+.site footer { padding-top: 24px; padding-bottom: 48px; border-top: 1px solid var(--line); text-align: center; }
+.site footer p + p { margin-top: 8px; }
+@media (min-width: 620px) {
+  .two { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: repeat(3, 1fr); }
+  .steps.four { grid-template-columns: repeat(2, 1fr); }
+  .gallery { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) { .site .links a:nth-child(n+4):not(:last-child) { display: none; } }

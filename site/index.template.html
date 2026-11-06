@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Dekatron: open firmware for the EleksTube IPS clock</title>
+<meta name="description" content="Open firmware for the EleksTube IPS Gen2 clock: a web page in the clock, themes that cross the six tubes, clock faces, and updates over the air. Installed by an AI assistant.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='3' width='14' height='26' rx='3' fill='%23ffb020'/%3E%3C/svg%3E">
+<style>/*STYLE*/</style>
+</head>
+<body class="site">
+<header class="top">
+  <a class="brand" href="#top">Deka<b>tron</b></a>
+  <nav class="links" aria-label="Sections">
+    <a href="#install">Install</a><a href="#use">Use</a><a href="#themes">Themes</a><a href="#create">Create</a><a href="#safe">Safe?</a>
+    <a href="https://github.com/yayitazale/dekatron">GitHub</a>
+  </nav>
+  <button class="mode" id="mode" aria-label="Light or dark"></button>
+</header>
+
+<main id="top">
+<section class="hero">
+  <p class="kicker">Open firmware · EleksTube IPS Gen2</p>
+  <h1>Six little screens,<br>your own clock.</h1>
+  <p class="lead">Dekatron turns the EleksTube IPS clock into something you can shape: a web page in the clock, <b>themes</b> that cross the six tubes, <b>faces</b> from any font, and updates over the air. You install it by pasting a prompt into an AI assistant.</p>
+  <p class="wip"><b>Work in progress.</b> The first public release is not out yet. The code, the formats and the creator are here and work; the installer and the downloads arrive with v0.1.</p>
+  <div class="row">
+    <a class="btn primary" href="#install">Set up my clock</a>
+    <a class="btn" href="#themes">See the themes</a>
+    <a class="btn" href="creator/">Make a theme</a>
+  </div>
+</section>
+
+<section class="card fit" id="fit">
+  <h2>Does it work on my clock?</h2>
+  <div class="two">
+    <div>
+      <p class="yes">Yes</p>
+      <p><b>EleksTube IPS Gen2</b> (also sold as G2.1): six 135 × 240 IPS screens, an ESP32 PICO-D4 with 4 MB of flash, six RGB lights, a DS3231 clock and four buttons.</p>
+    </div>
+    <div>
+      <p class="no">Not tried</p>
+      <p>The first EleksTube (glowing tubes or OLED), the Gen1 IPS without Wi-Fi, and other clones. If yours has the same parts on other pins, copy <code>firmware/boards/elekstube-ips-gen2.yaml</code> and send it as a pull request.</p>
+    </div>
+  </div>
+  <p class="muted">Dekatron is compatible with the EleksTube IPS clocks and has no affiliation with EleksTube.</p>
+</section>
+
+<section id="install">
+  <h2 class="num"><span>01</span> Install</h2>
+  <div class="steps">
+    <div class="card step"><b>1 · On the clock</b><p>Plug it into your computer with a USB cable and keep its original power supply at hand. Nothing in the clock needs to be opened.</p></div>
+    <div class="card step"><b>2 · On your computer</b><p>Open an AI assistant that can use the terminal, such as Claude Code, and paste the prompt. It checks the computer, finds the clock, <b>copies its flash first</b>, and asks you what it needs.</p></div>
+    <div class="card step"><b>3 · Follow along</b><p>Choose a theme, give it your Wi-Fi, and open the page of the clock. To go back to the original firmware, ask the assistant to restore the copy.</p></div>
+  </div>
+  <div class="card notice">
+    <b>The installer comes with the first release.</b> The prompt, <code>tools/install.py</code> and the downloads of the firmware are being written, so there is nothing to paste yet. Everything else on this page already works. Watch the <a href="https://github.com/yayitazale/dekatron">repository</a> for v0.1.
+  </div>
+</section>
+
+<section id="use">
+  <h2 class="num"><span>02</span> Use</h2>
+  <div class="card">
+    <h3>The page of the clock</h3>
+    <p>Open the address of the clock in a browser, on a phone or a computer on the same network. It has three tabs: <b>Clock</b> (brightness, lights, night mode, faces, countdown), <b>Files</b> (upload a theme, a face, a backup or a firmware, and see what is on the clock) and <b>Settings</b> (timezone, password, firmware).</p>
+    <h3>Wi-Fi</h3>
+    <p>A clock without Wi-Fi shows a code on its screens. Scan it with your phone, choose your network, and the clock joins it.</p>
+    <h3>Buttons</h3>
+    <p><b>Left</b> and <b>right</b> change the face, <b>Mode</b> starts a countdown, <b>Power</b> turns the screens off, and holding <b>Mode</b> for ten seconds forgets the Wi-Fi.</p>
+  </div>
+</section>
+
+<section id="update">
+  <h2 class="num"><span>03</span> Update</h2>
+  <div class="card">
+    <p>The clock never goes to the internet. Its page does: when you open it, at most every two hours, it asks this site whether there is a newer firmware, and shows a dot on Settings if so. <b>Update</b> downloads the firmware here, checks its SHA-256 and sends it to the clock, which restarts and goes back to the old firmware if the new one does not start. You can also upload a <code>.ota.bin</code> yourself in Files.</p>
+  </div>
+</section>
+
+<section id="themes">
+  <h2 class="num"><span>04</span> Themes</h2>
+  <p class="muted">A theme is four animations that cross the six tubes, with lights that follow the picture: at startup, while connecting, when connected and at the end of a countdown. Download the file, then upload it in <b>Files</b> on the page of your clock. These pages are served over HTTPS and cannot reach the clock themselves, which speaks plain HTTP.</p>
+  <div id="gallery" class="gallery"><p class="muted">Loading the themes…</p></div>
+  <p class="muted">Themes and faces here are under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>: use them and change them, say who made them, and share what you make the same way.</p>
+</section>
+
+<section id="create">
+  <h2 class="num"><span>05</span> Create</h2>
+  <div class="card">
+    <p>The <a href="creator/">creator</a> runs in your browser and sends nothing anywhere. Give it an animated GIF, WebP or PNG, a video or a series of pictures for each of the four animations and it makes the theme file, with a preview of the six tubes. For clock faces, pick a font or ten pictures.</p>
+    <div class="row"><a class="btn primary" href="creator/">Open the creator</a></div>
+  </div>
+</section>
+
+<section id="ai">
+  <h2 class="num"><span>06</span> Create with an AI</h2>
+  <p class="muted">The tools of the repository make the same files from the command line, and check them against the rules of the clock, so an assistant can do it for you and fix its own mistakes. The details are in <a href="https://github.com/yayitazale/dekatron/blob/main/docs/making-bins.md">docs/making-bins.md</a>.</p>
+  <div class="card prompt">
+    <h3>A theme, with an assistant that has a terminal</h3>
+    <pre id="p-theme">Read docs/making-bins.md in this repository. Make me a theme called "Surf" for the Dekatron clock: waves and a surfboard, in warm colors, four short animations (boot, connecting, online, countdown_end) of 1370 x 240 pixels at 15 fps, drawn by you with Python and Pillow. Build it with tools/make_theme.py, license CC-BY-SA-4.0, author "Me". Run tools/check_bin.py --gallery and fix every problem until there is none. Give me the path of the .bin.</pre>
+    <div class="row"><button class="btn" data-copy="p-theme">Copy</button></div>
+  </div>
+  <div class="card prompt">
+    <h3>A face from a font</h3>
+    <pre id="p-face">Read docs/making-bins.md in this repository. Make me a clock face called "Neon" with the font at ./MyFont.ttf in blue, with tools/make_face.py, license CC-BY-SA-4.0, author "Me". Check it with tools/check_bin.py --gallery and give me the path of the .bin.</pre>
+    <div class="row"><button class="btn" data-copy="p-face">Copy</button></div>
+  </div>
+  <div class="card prompt">
+    <h3>With a chat that has no terminal</h3>
+    <pre id="p-chat">I am making an animation for a clock with six small screens side by side. Make four short animated GIFs, each exactly 1370 x 240 pixels at 15 frames per second, black background, a style of waves and surfboards in warm colors: 1) the clock starting (8 s), 2) looking for Wi-Fi (6 s, can loop), 3) connected (4 s), 4) the end of a countdown (6 s). The picture crosses the six screens, which are 135 pixels wide and 112 pixels apart, so keep the action inside them. Few colors and flat shapes.</pre>
+    <div class="row"><button class="btn" data-copy="p-chat">Copy</button></div>
+    <p class="muted">Then open the <a href="creator/">creator</a>, give it the four GIFs and download the theme.</p>
+  </div>
+</section>
+
+<section id="safe">
+  <h2 class="num"><span>07</span> Is it safe?</h2>
+  <div class="steps">
+    <div class="card step"><b>Your copy comes first</b><p>The original firmware is tied to the clock's address and cannot be downloaded again. The installer reads the whole flash twice, compares the two, and does not go on without a copy you can restore.</p></div>
+    <div class="card step"><b>One command back</b><p>The copy is written back with one command and the clock is as it was. This has been tried on a real clock.</p></div>
+    <div class="card step"><b>If an update fails</b><p>A firmware that does not start is dropped, and the clock goes back to the previous one by itself. Updates need a password, and every file is checked before it is used.</p></div>
+    <div class="card step"><b>Open</b><p>The code is under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU GPL v3</a>. Read it, change it, and share your changes.</p></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <p><a href="https://github.com/yayitazale/dekatron">GitHub</a> · <a href="https://github.com/yayitazale/dekatron/blob/main/docs/format.md">File format</a> · <a href="https://github.com/yayitazale/dekatron/blob/main/docs/api.md">API</a> · <a href="https://github.com/yayitazale/dekatron/issues">Issues</a></p>
+  <p class="muted">Dekatron is compatible with the EleksTube IPS clocks and has no affiliation with EleksTube. Code under the GNU GPL v3 or later, themes and faces under CC BY-SA 4.0.</p>
+</footer>
+<script>/*SCRIPT*/</script>
+</body>
+</html>

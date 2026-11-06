@@ -29,12 +29,13 @@ from make_theme import build_theme_library
 
 ROOT = Path(__file__).parent.parent
 PREVIEW_SIZE = (685, 120)  # half of the strip that crosses the six tubes
-PREVIEW_FRAMES = 60  # the first four seconds of the startup animation
+PREVIEW_FRAMES = 60  # at most, taken evenly from the whole startup animation
 
 
 def preview(canvases, fps, path):
-    frames = [canvas.resize(PREVIEW_SIZE, Image.LANCZOS).quantize(colors=64, method=Image.MEDIANCUT) for canvas in canvases[:PREVIEW_FRAMES]]
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=1000 // fps, loop=0, optimize=True)
+    step = max(1, len(canvases) // PREVIEW_FRAMES)
+    frames = [canvas.resize(PREVIEW_SIZE, Image.LANCZOS).quantize(colors=64, method=Image.MEDIANCUT) for canvas in canvases[::step]]
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=1000 * step // fps, loop=0, optimize=True)
 
 
 def build_one(folder, out, report):
