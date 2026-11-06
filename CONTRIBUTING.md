@@ -61,7 +61,9 @@ Needs Python 3.12 or later with Pillow, and Node 22.
 python -m unittest discover -s tests   # the tools and the page build
 node --test "tests/*.test.js"          # the store and scene libraries of the pages, against the Python ones
 python tools/build_web.py              # after a change in web/, before building the firmware
-python tools/build_site.py             # after a change in site/ or web/store.js
+python tools/build_site.py             # after a change in site/ or web/store.js: the creator page
+python tools/build_themes.py           # the gallery of themes, into docs/public/themes/
+(cd docs && npm ci && npm run dev)     # the website, with its own server
 python tools/dev_web.py elekstube.local   # the clock's page on http://127.0.0.1:8000, talking to a real clock
 ```
 

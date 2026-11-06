@@ -37,6 +37,19 @@ def load_canvases(path, fps):
     return [cover(frame, CANVAS_WIDTH, HEIGHT) for frame in frames]
 
 
+def build_theme_library(name, info, paths, fps=15, lights=True, report=print):
+    """Makes the theme file from one animation for each role. Gives (library, [(role, canvases)])."""
+    made = [(role, load_canvases(paths[role], fps)) for role in THEME_ROLES]
+    entries = build_palette([canvases for _, canvases in made])
+    clips = []
+    for role, canvases in made:
+        scene = encode_scene(canvases, entries, lights=lights)
+        size = len(scene.palette) + sum(map(len, scene.records)) + sum(map(len, scene.blobs))
+        report(f"{role}: {len(canvases)} frames at {fps} fps, {size} bytes")
+        clips.append((role, fps, scene))
+    return build_library(clips, theme=(name, info)), made
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("output", type=Path)
@@ -57,15 +70,7 @@ def main():
     if args.description:
         info["description"] = args.description
     try:
-        made = [(role, load_canvases(getattr(args, role), args.fps)) for role in THEME_ROLES]
-        entries = build_palette([canvases for _, canvases in made])
-        clips = []
-        for role, canvases in made:
-            scene = encode_scene(canvases, entries, lights=not args.no_lights)
-            size = len(scene.palette) + sum(map(len, scene.records)) + sum(map(len, scene.blobs))
-            print(f"{role}: {len(canvases)} frames at {args.fps} fps, {size} bytes")
-            clips.append((role, args.fps, scene))
-        library = build_library(clips, theme=(args.name, info))
+        library, _ = build_theme_library(args.name, info, {role: getattr(args, role) for role in THEME_ROLES}, args.fps, not args.no_lights)
     except (ValueError, OSError) as error:
         sys.exit(str(error))
 

@@ -4,3 +4,10 @@
 secrets.yaml
 *.bin
 __pycache__/
+
+# Built by tools/build_themes.py, served by the site
+
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+/docs/public/themes/

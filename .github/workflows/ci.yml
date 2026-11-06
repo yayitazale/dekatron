@@ -35,6 +35,31 @@ jobs:
       - run: python -m unittest discover -s tests
       - run: node --test "tests/*.test.js"
 
+  # The website has to build, with its gallery of themes and its pages.
+  docs:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release)') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: pip install pillow
+      - run: python tools/build_themes.py
+      - run: npm ci
+        working-directory: docs
+      - run: npm run build
+        working-directory: docs
+      - name: The gallery and the creator are in the site
+        run: |
+          test -s docs/.vitepress/dist/themes/index.json
+          test -s docs/.vitepress/dist/creator/index.html
+
   # Blocking too: the firmware has to build, and the app has to leave room in
   # its partition (1,441,792 bytes) for what comes next.
   firmware:

@@ -21,6 +21,9 @@ class BuildSiteTest(unittest.TestCase):
         self.assertEqual(build_site.build_creator(), build_site.OUTPUT.read_text(encoding="utf-8"),
                          "site/ changed: run python tools/build_site.py")
 
+    def test_the_creator_is_where_the_site_serves_it(self):
+        self.assertEqual(build_site.OUTPUT, Path(__file__).parent.parent / "docs" / "public" / "creator" / "index.html")
+
 
 if __name__ == "__main__":
     unittest.main()

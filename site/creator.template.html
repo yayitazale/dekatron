@@ -4,12 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<title>Dekatron theme creator</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='3' width='14' height='26' rx='3' fill='%23ffb020'/%3E%3C/svg%3E">
+<title>Theme creator | Dekatron</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
 <style>/*STYLE*/</style>
+<script>
+  // The same choice as the rest of the website: it keeps it in this key, and follows the device when it has none.
+  (() => {
+    let saved = null;
+    try { saved = localStorage.getItem("vitepress-theme-appearance"); } catch (error) { /* storage can be off */ }
+    const dark = saved === "dark" || (saved !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
 </head>
 <body>
-<div id="app"></div>
+<nav class="bar" aria-label="Main">
+  <a class="logo" href="../"><img src="../logo.svg" alt="">Dekatron</a>
+  <div class="links">
+    <a href="../guide/getting-started">Guide</a>
+    <a href="../themes">Themes</a>
+    <a class="on" href="../create/">Create</a>
+    <a href="../api">Reference</a>
+    <a href="https://github.com/yayitazale/dekatron">GitHub</a>
+  </div>
+  <button class="appearance" id="appearance" aria-label="Switch between light and dark"></button>
+</nav>
+<main id="app"></main>
+<footer>Dekatron is compatible with the EleksTube IPS clocks and has no affiliation with EleksTube. Themes and faces are under CC BY-SA 4.0.</footer>
 <script>/*SCRIPT*/</script>
 </body>
 </html>

@@ -9,7 +9,7 @@ Open firmware for the **EleksTube IPS Gen2** clock, the one with six small IPS s
 
 Dekatron is compatible with the EleksTube IPS clocks and has no affiliation with EleksTube.
 
-> The project is being prepared for its first public release. Installation, themes and a theme creator will live on the project's website, which is built from `site/`.
+> The project is being prepared for its first public release. Installation, the gallery of themes and the creator live on the website, <https://yayitazale.github.io/dekatron/>, which is built from `docs/`.
 
 ## What is here
 
@@ -18,9 +18,9 @@ Dekatron is compatible with the EleksTube IPS clocks and has no affiliation with
 | `components/` | The ESPHome components: the tubes (`elekstube_ips`) and the HTTP API (`dekatron_api`) |
 | `firmware/` | The profiles (`clock.yaml`, `full.yaml`), their packages and the board file with the pins |
 | `web/` | The page that the clock serves |
-| `site/` | The static site and the theme creator |
+| `docs/` | The website (VitePress), the reference documents, and the built creator page |
+| `site/` | The sources of the theme creator |
 | `tools/` | Python tools that build themes, faces and the store file the clock takes |
-| `docs/` | [`api.md`](docs/api.md) and [`web.md`](docs/web.md) |
 | `tests/` | Tests of the tools and of the page libraries |
 
 ## Before you flash anything

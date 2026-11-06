@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Joseba Egia and Dekatron contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The theme creator as a page of its own. It runs in the browser and sends nothing anywhere: it makes a
-// theme file, which the page of the clock takes with Change theme.
+// theme file, which the Files tab of the page of the clock takes.
 (() => {
   "use strict";
   const Store = DekatronStore;
@@ -23,7 +23,16 @@
   const card = (title, ...content) => h("section", { class: "card" }, h("h2", {}, title), content);
   const kilobytes = (bytes) => `${Math.round(bytes / 1024)} KB`;
 
-  document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // Light or dark as the rest of the website: it keeps the choice in the key of VitePress.
+  const appearance = document.getElementById("appearance");
+  const showMode = () => { appearance.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; };
+  showMode();
+  appearance.addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    try { localStorage.setItem("vitepress-theme-appearance", dark ? "dark" : "light"); } catch (error) { /* storage can be off */ }
+    showMode();
+  });
 
   function dialog(title, content, buttons) {
     const box = h("dialog", {}, h("h3", {}, title), content, h("div", { class: "row" }, buttons));
@@ -42,6 +51,7 @@
   const name = h("input", { type: "text", maxlength: 15, placeholder: "Name of the theme", class: "grow" });
   const author = h("input", { type: "text", maxlength: 40, placeholder: "Your name (optional)", class: "grow" });
   const about = h("input", { type: "text", maxlength: 160, placeholder: "A line about it (optional)", class: "grow" });
+  const license = h("input", { type: "text", maxlength: 40, value: "CC-BY-SA-4.0", class: "grow", "aria-label": "License" });
   const fit = h("select", { class: "grow", "aria-label": "Picture on the strip" },
     [h("option", { value: "fill" }, "Fill the strip, cropping"), h("option", { value: "fit" }, "Fit inside, with black around")]);
   const lights = h("select", { class: "grow", "aria-label": "Lights" },
@@ -82,12 +92,13 @@
       const made = await DekatronCreator.makeClips(roles, BUDGET, (message, fraction) => { text.textContent = message; progress.value = fraction; }, stop);
       const info = {};
       if (author.value.trim()) info.author = author.value.trim();
+      if (license.value.trim()) info.license = license.value.trim();
       if (about.value.trim()) info.description = about.value.trim();
       const bytes = Store.build([Store.theme(name.value.trim(), info), ...made.clips]);
-      const link = h("a", { class: "btn primary", href: URL.createObjectURL(new Blob([bytes])), download: `${name.value.trim()}.bin` }, `Download ${name.value.trim()}.bin`);
+      const link = h("a", { class: "btn primary", href: URL.createObjectURL(new Blob([bytes])), download: `${name.value.trim()}.theme.bin` }, `Download ${name.value.trim()}.theme.bin`);
       result.replaceChildren(
         h("p", {}, `Ready: ${kilobytes(bytes.length)}, with ${made.clips.map((clip) => `${clip.frames} frames`).join(", ")}.`),
-        h("p", { class: "muted" }, "On the page of your clock, open Style, press Change theme and choose this file, then Apply."),
+        h("p", { class: "muted" }, "On the page of your clock, open Files and upload this file. It says what the file is before it changes anything, and your faces stay."),
         h("div", { class: "row" }, link));
     } catch (error) {
       toast(error.message, true);
@@ -97,10 +108,11 @@
   }
 
   document.getElementById("app").append(
-    h("header", {}, h("div", { class: "brand" }, "Deka", h("b", {}, "tron"), " themes")),
+    h("h1", {}, "Theme creator"),
+    h("p", { class: "lead" }, "Make a theme for your clock in your browser. Nothing leaves your computer."),
     card("Create a theme",
       h("p", { class: "muted" }, "A theme is four animations: when the clock starts, while it connects, when it is connected and at the end of a countdown. Use an animated GIF, WebP or PNG, a video, or a numbered series of images for each. The animation crosses the six tubes as one wide strip, nearly six times as wide as tall. Nothing leaves your computer."),
-      h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about),
+      h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about), h("div", { class: "row" }, h("span", { class: "muted" }, "License"), license),
       h("div", { class: "row" }, fit), h("div", { class: "row" }, lights),
       h("div", {}, picks.map((pick) => pick.row)),
       h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn primary", onclick: make }, "Create")),
