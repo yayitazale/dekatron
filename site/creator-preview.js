@@ -37,7 +37,7 @@ const DekatronPreview = (() => {
     const tube = h("select", { "aria-label": "Tube" }, [h("option", { value: "all" }, tubeName("all")), ...[0, 1, 2, 3, 4, 5].map((n) => h("option", { value: String(n) }, tubeName(n)))]);
     const from = h("input", { type: "number", min: 0, step: 0.1, value: 0, "aria-label": "Starts at, seconds" });
     const length = h("input", { type: "number", min: 0.1, step: 0.1, value: 0.5, "aria-label": "Lasts, seconds" });
-    const color = h("input", { type: "color", value: "#ffffff", "aria-label": "Color" });
+    const color = DekatronColor.picker({ value: "#ffffff", label: "Color" });
     const strength = h("input", { type: "range", min: 10, max: 100, value: 100, "aria-label": "Strength", class: "grow" });
     const fade = h("input", { type: "number", min: 0, step: 0.1, value: 0.2, "aria-label": "Fade, seconds" });
     const hint = h("p", { class: "muted" });

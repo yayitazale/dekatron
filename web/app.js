@@ -9,6 +9,7 @@
   const Store = DekatronStore;
   const Zones = DekatronZones;
   const Update = DekatronUpdate;
+  const Colors = DekatronColor;
 
   const BUILT_IN = ["Nixie"]; // the face of the firmware, which the store does not hold
   const MAX_FACES = Store.MAX_FACES + BUILT_IN.length;
@@ -376,7 +377,7 @@
   function cardLights(controls) {
     const leds = controls.leds;
     if (!leds) return "";
-    const picker = h("input", { type: "color", value: leds.color, "aria-label": "Custom color" });
+    const picker = Colors.picker({ value: leds.color, label: "Custom color" });
     picker.addEventListener("change", () => control({ leds: { on: true, color: picker.value } }));
     return card("Lights",
       h("div", { class: "row between" }, h("span", {}, "On"), toggle(leds.on, "Lights", (value) => control({ leds: { on: value } }))),

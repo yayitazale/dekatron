@@ -169,8 +169,8 @@ const DekatronFaces = (() => {
       const file = h("input", { type: "file", accept: ".ttf,.otf,.woff,.woff2", hidden: true });
       const size = h("input", { type: "range", min: 40, max: 90, value: 62, "aria-label": "Size" });
       const glow = h("input", { type: "range", min: 0, max: 30, value: 12, "aria-label": "Glow" });
-      const color = h("input", { type: "color", value: "#ffb020", "aria-label": "Digit color" });
-      const back = h("input", { type: "color", value: "#000000", "aria-label": "Background color" });
+      const color = DekatronColor.picker({ value: "#ffb020", label: "Digit color" });
+      const back = DekatronColor.picker({ value: "#000000", label: "Background color" });
       const strip = h("div", { class: "digits" });
       const tubes = h("div", { class: "digits" });
       let rendered = [];
