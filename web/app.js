@@ -425,7 +425,7 @@
     const faces = faceSlots();
     const slots = [...Array(MAX_FACES).keys()].map((index) => faces[index]
       ? faceSlot(faces[index], state)
-      : h("div", { class: "cell" }, h("button", { class: "slot empty", "aria-label": "Add a face", onclick: () => go("style") }, "+")));
+      : h("div", { class: "cell" }, h("button", { class: "slot empty", "aria-label": "Add a face", onclick: () => { app.slot = "free"; go("style"); } }, "+")));
     const seconds = h("input", { type: "number", min: 1, max: 3600, value: 10, "aria-label": "Seconds" });
     const minutes = h("input", { type: "number", min: 1, max: 60, value: 5, "aria-label": "Minutes" });
     const running = /^countdown/.test(state.animation);
@@ -476,13 +476,12 @@
     const info = entry ? Store.themeInfo(entry) : {};
     const bytes = app.working ? app.working.entries.filter((candidate) => candidate.kind === Store.KIND_CLIP)
       .reduce((total, candidate) => total + candidate.images.reduce((sum, image) => sum + image.length, 0), 0) : 0;
-    const details = [info.author && `by ${info.author}`, info.license, bytes ? kilobytes(bytes) : ""].filter(Boolean).join(" · ");
+    const details = [info.author && `by ${info.author}`, bytes ? kilobytes(bytes) : ""].filter(Boolean).join(" · ");
     return card("Theme",
       h("div", { class: "row between" },
         h("div", {}, h("div", { class: "big" }, entry ? entry.name : "No theme"), h("div", { class: "muted" }, details)),
         h("button", { class: "btn primary", onclick: () => fileInput.click() }, "Change theme"), fileInput),
       info.description ? h("p", { class: "muted", style: "margin-top:10px" }, info.description) : "",
-      h("p", { class: "muted", style: "margin:12px 0 14px" }, "A theme is a set of four animations, and the clock always needs all four. Changing it replaces them together."),
       h("div", {}, rows));
   }
 
@@ -520,13 +519,17 @@
   }
 
   // A face goes to the working copy of the store, and from there to the clock when it is applied.
-  function addFace(name, images) {
+  // The slot is "free" for the next free one, or the position among the faces of the store, which then is replaced.
+  function addFace(name, images, slot = "free") {
     if (!name) return toast("Give the face a name", true);
-    if (faceSlots().length >= MAX_FACES) return toast("All five slots are in use. Remove a face first", true);
-    if (faceSlots().some((face) => face.name === name)) return toast("A face with that name already exists", true);
+    const replaced = slot === "free" ? undefined : storeFaces()[+slot];
+    if (!replaced && faceSlots().length >= MAX_FACES) return toast("All five slots are in use. Choose one to replace", true);
+    if (faceSlots().some((face) => face.name === name && face.entry !== replaced)) return toast("A face with that name already exists", true);
     try {
-      const entries = [...app.working.entries, Store.face(name, images)];
+      const face = Store.face(name, images);
+      const entries = replaced ? app.working.entries.map((entry) => (entry === replaced ? face : entry)) : [...app.working.entries, face];
       Store.build(entries, app.state.store.capacity);
+      app.slot = undefined;
       edit(entries);
       go("clock");
     } catch (error) {
@@ -534,7 +537,7 @@
     }
   }
 
-  function imagesPanel(nameInput) {
+  function imagesPanel(nameInput, slotInput) {
     const picked = new Map();
     const status = h("p", { class: "muted" });
     const create = h("button", { class: "btn primary", disabled: true }, "Add");
@@ -554,7 +557,7 @@
     input.addEventListener("change", () => take(input.files));
     create.addEventListener("click", async () => {
       try {
-        addFace(nameInput.value.trim(), await Promise.all([...Array(10).keys()].map((digit) => imageToJpeg(picked.get(digit)))));
+        addFace(nameInput.value.trim(), await Promise.all([...Array(10).keys()].map((digit) => imageToJpeg(picked.get(digit)))), slotInput.value);
       } catch (error) {
         toast(error.message, true);
       }
@@ -611,7 +614,7 @@
     });
   }
 
-  function fontPanel(nameInput) {
+  function fontPanel(nameInput, slotInput) {
     const family = `dk-face-${Math.random().toString(36).slice(2, 8)}`;
     let loaded = false;
     const select = h("select", { class: "grow", "aria-label": "Font" }, FONTS.map(([id, label]) => h("option", { value: id }, label)));
@@ -661,7 +664,7 @@
           const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
           return new Uint8Array(await blob.arrayBuffer());
         }));
-        addFace(nameInput.value.trim() || select.options[select.selectedIndex].text.slice(0, 15), images);
+        addFace(nameInput.value.trim() || select.options[select.selectedIndex].text.slice(0, 15), images, slotInput.value);
       } catch (error) {
         toast(error.message, true);
       }
@@ -676,12 +679,15 @@
   }
 
   function cardStudio() {
-    if (faceSlots().length >= MAX_FACES) {
-      return card("New face", h("p", { class: "muted" }, "All five slots are in use. Remove a face from the Clock tab to make room."));
-    }
     const name = h("input", { type: "text", maxlength: 15, placeholder: "Name of the face", class: "grow" });
+    // Slot 1 is the Nixie of the firmware. The others are the faces of the store, in order, and a free one comes last.
+    const placed = storeFaces();
+    const options = placed.map((entry, index) => h("option", { value: index }, `Slot ${BUILT_IN.length + index + 1}: replace ${entry.name}`));
+    if (faceSlots().length < MAX_FACES) options.push(h("option", { value: "free" }, `Slot ${faceSlots().length + 1}: free`));
+    const slot = h("select", { class: "grow", "aria-label": "Slot" }, options);
+    slot.value = app.slot !== undefined && [...slot.options].some((option) => option.value === app.slot) ? app.slot : options[options.length - 1].value;
     const body = h("div", { style: "margin-top:12px" });
-    const modes = { images: () => imagesPanel(name), font: () => fontPanel(name) };
+    const modes = { images: () => imagesPanel(name, slot), font: () => fontPanel(name, slot) };
     const buttons = {};
     const choose = (mode) => {
       body.replaceChildren(modes[mode]());
@@ -690,7 +696,7 @@
     for (const [key, label] of [["font", "From a font"], ["images", "From images"]]) {
       buttons[key] = h("button", { class: "chip", onclick: () => choose(key) }, label);
     }
-    const box = card("New face", h("div", { class: "row" }, name), h("div", { class: "chips", style: "margin-top:12px" }, buttons.font, buttons.images), body);
+    const box = card("New face", h("div", { class: "row" }, name), h("div", { class: "row", style: "margin-top:12px" }, slot), h("div", { class: "chips", style: "margin-top:12px" }, buttons.font, buttons.images), body);
     choose("font");
     return box;
   }
