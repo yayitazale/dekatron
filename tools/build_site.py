@@ -17,7 +17,7 @@ from build_web import squeeze_css
 
 ROOT = Path(__file__).parent.parent
 SITE = ROOT / "site"
-SCRIPTS = (ROOT / "web" / "store.js", SITE / "scene.js", SITE / "creator.js", SITE / "creator-page.js")
+SCRIPTS = (ROOT / "web" / "store.js", SITE / "scene.js", SITE / "creator.js", SITE / "creator-faces.js", SITE / "creator-page.js")
 TEMPLATE = SITE / "creator.template.html"
 OUTPUT = ROOT / "docs" / "public" / "creator" / "index.html"
 

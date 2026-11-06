@@ -107,9 +107,7 @@
     }
   }
 
-  document.getElementById("app").append(
-    h("h1", {}, "Theme creator"),
-    h("p", { class: "lead" }, "Make a theme for your clock in your browser. Nothing leaves your computer."),
+  const themeCards = [
     card("Create a theme",
       h("p", { class: "muted" }, "A theme is four animations: when the clock starts, while it connects, when it is connected and at the end of a countdown. Use an animated GIF, WebP or PNG, a video, or a numbered series of images for each. The animation crosses the six tubes as one wide strip, nearly six times as wide as tall. Nothing leaves your computer."),
       h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about), h("div", { class: "row" }, h("span", { class: "muted" }, "License"), license),
@@ -119,5 +117,25 @@
       result),
     card("Tips",
       h("p", { class: "muted" }, "Few colors and small movements make small files. The clock has room for about 1 MB of faces and theme together, and this page keeps your theme under 880 KB so four faces still fit. If it is too big, use fewer seconds or fewer frames per second."),
-      h("p", { class: "muted" }, "The lights take the color of what is on each tube, and the tubes are lit left to right, so put the action where the tubes are.")));
+      h("p", { class: "muted" }, "The lights take the color of what is on each tube, and the tubes are lit left to right, so put the action where the tubes are.")),
+  ];
+  let faceCard = null; // made when it is first opened, because it loads a font
+
+  // Theme or face, kept in the address so a link and the back button go to the one wanted.
+  const area = h("div", {});
+  const tabs = { theme: h("button", { class: "btn mode", onclick: () => { location.hash = "theme"; } }, "Theme"), face: h("button", { class: "btn mode", onclick: () => { location.hash = "face"; } }, "Face") };
+  function show() {
+    const wanted = location.hash.slice(1) === "face" ? "face" : "theme";
+    if (wanted === "face" && !faceCard) faceCard = DekatronFaces.build({ h, toast, card, Store });
+    area.replaceChildren(...(wanted === "face" ? [faceCard] : themeCards));
+    for (const [key, button] of Object.entries(tabs)) button.classList.toggle("on", key === wanted);
+  }
+  window.addEventListener("hashchange", show);
+
+  document.getElementById("app").append(
+    h("h1", {}, "Creator"),
+    h("p", { class: "lead" }, "Make a theme or a clock face for your clock in your browser, as a file to upload in the Files tab of its page."),
+    h("div", { class: "row", style: "margin-bottom:18px" }, tabs.theme, tabs.face),
+    area);
+  show();
 })();

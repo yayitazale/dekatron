@@ -12,7 +12,14 @@ Give it, for each of the four animations, an animated GIF, WebP or PNG, a video,
 
 ## A face
 
-A face is ten pictures, one per digit, fitted to the 135 × 240 tubes. Make them from a font or from ten images, with the tools of the repository: [From the command line](/making-bins). A face made in the page of the creator is coming to this page.
+A face is ten pictures, one per digit, fitted to the 135 × 240 tubes. Open the **Face** tab of the [creator](/creator/index.html#face){target="_self"} and either:
+
+- **From a font:** pick one of sixteen free fonts from [Fontsource](https://fontsource.org) (OFL or Apache licenses) or use a font file of your own, then choose the size, the color of the digits, their glow and the background. A preview shows the digits and the six tubes. The font loads from the internet into your browser, never into the clock.
+- **From ten images:** choose or drop ten images named 0 to 9, such as `0.png` or `digit-7.jpg`. Each is fitted to the tube on black.
+
+Then it downloads `name.face.bin`, with your name and license. Upload it in **Files**: it goes into a free slot, or replaces a face you choose. The clock holds up to five faces, one of them built into the firmware.
+
+The same can be done from the [command line](/making-bins) with `tools/make_face.py`.
 
 ## Other ways
 
