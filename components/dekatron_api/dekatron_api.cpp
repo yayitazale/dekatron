@@ -397,7 +397,7 @@ void DekatronApi::play_(AsyncWebServerRequest *request) {
   const bool valid = json::parse_json(this->body_, [&](JsonObject root) {
     played = this->tubes_->play_request(root["type"] | "effect", root["name"] | "", root["tubes"] | "all",
                                         root["duration"] | 10, root["priority"] | 2, root["color"] | "",
-                                        root["text"] | "", root["scroll"] | false, root["loop"] | 0);
+                                        root["loop"] | 0);
     return true;
   });
   if (!valid) {

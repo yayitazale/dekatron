@@ -13,7 +13,6 @@ enum class Effect : uint8_t {
   SWEEP,
   PULSE,
   COUNTDOWN,
-  TEXT,
   CLIP,
 };
 
@@ -46,10 +45,7 @@ struct AnimationRequest {
   uint32_t duration_ms{10000};
   Rgb color{0, 0, 0};
   bool control_leds{true};
-  bool scroll{false};
   uint8_t clip_index{0};
-  uint8_t text_length{0};
-  uint8_t text[64]{};  // glyph indices, see text.h
 };
 
 Effect effect_from_name(const char *name);

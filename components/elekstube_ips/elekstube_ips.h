@@ -46,7 +46,7 @@ class ElekstubeIps : public Component {
 
   // Returns false when the request is invalid or a more urgent animation is running.
   bool play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
-                    const char *color, const char *text, bool scroll, int loops);
+                    const char *color, int loops);
   bool download_store(const char *url);
   std::string store_state() const { return this->store_.state(); }
   Store &store() { return this->store_; }
@@ -105,8 +105,6 @@ class ElekstubeIps : public Component {
   void set_window_(uint16_t first_column = 0, uint16_t last_column = 134, uint16_t first_row = 0,
                    uint16_t last_row = 239);
   bool draw_sweep_tube_(uint8_t tube, uint32_t elapsed_ms);
-  void draw_text_tube_(uint8_t tube, const uint8_t *glyphs, size_t count, int32_t text_left);
-  bool draw_text_frame_(uint32_t elapsed_ms);
   bool draw_clip_frame_();
   bool draw_scene_frame_(const ClipInfo &info);
   void draw_scene_patch_(const ScenePatch &patch, const uint8_t *data, uint32_t size, const uint16_t *palette);
@@ -197,8 +195,6 @@ class ElekstubeIps : public Component {
   uint8_t shown_digits_[6]{};
   uint16_t *sweep_lines_{nullptr};
   bool sweep_lines_valid_[6]{};
-  bool text_drawn_{false};
-  bool text_tube_blank_[6]{};
   uint32_t clip_shown_frames_[6]{};
   uint32_t scene_frames_drawn_{0};
   uint32_t scene_slowest_us_{0};

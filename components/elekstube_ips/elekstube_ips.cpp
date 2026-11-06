@@ -20,7 +20,6 @@
 #include <esp_wifi.h>
 #include "qrcodegen.h"
 #include "setup_icons.h"
-#include "text.h"
 
 namespace esphome {
 namespace elekstube_ips {
@@ -251,7 +250,7 @@ void ElekstubeIps::toggle_countdown(int duration_s) {
     this->stop_animation();
     return;
   }
-  this->play_request("effect", "countdown", "all", duration_s, DEFAULT_PRIORITY, "", "", false, 0);
+  this->play_request("effect", "countdown", "all", duration_s, DEFAULT_PRIORITY, "", 0);
 }
 
 void ElekstubeIps::flash_displays() {
@@ -281,24 +280,14 @@ bool ElekstubeIps::download_store(const char *url) {
 }
 
 bool ElekstubeIps::play_request(const char *type, const char *name, const char *tubes, int duration_s, int priority,
-                                const char *color, const char *text, bool scroll, int loops) {
+                                const char *color, int loops) {
   AnimationRequest request;
   if (strcmp(type, "effect") == 0) {
     request.effect = effect_from_name(name);
-    if (request.effect == Effect::NONE || request.effect == Effect::TEXT || request.effect == Effect::CLIP) {
+    if (request.effect == Effect::NONE || request.effect == Effect::CLIP) {
       ESP_LOGW(TAG, "Unknown effect: %s", name);
       return false;
     }
-  } else if (strcmp(type, "text") == 0) {
-    request.effect = Effect::TEXT;
-    request.text_length = static_cast<uint8_t>(text_parse(text, request.text));
-    if (request.text_length == 0) {
-      ESP_LOGW(TAG, "Text request without text");
-      return false;
-    }
-    request.scroll = scroll;
-    // Text does not touch the LEDs unless the caller asks for a colour.
-    request.control_leds = color[0] != '\0';
   } else if (strcmp(type, "clip") == 0) {
     request.effect = Effect::CLIP;
     if (!this->store_.find(name, EntryKind::CLIP, &request.clip_index)) {
@@ -337,13 +326,6 @@ bool ElekstubeIps::play_request(const char *type, const char *name, const char *
       return false;
     }
     request.duration_ms = total_ms > 0 ? static_cast<uint32_t>(total_ms) : 1;
-  }
-  if (request.effect == Effect::TEXT) {
-    uint8_t capacity = 0;
-    for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
-      capacity += (request.tube_mask >> tube) & 1;
-    }
-    request.scroll = request.scroll || request.text_length > capacity;
   }
   return this->submit_(request);
 }
@@ -878,77 +860,6 @@ bool ElekstubeIps::draw_sweep_tube_(uint8_t tube, uint32_t elapsed_ms) {
   return true;
 }
 
-void ElekstubeIps::draw_text_tube_(uint8_t tube, const uint8_t *glyphs, size_t count, int32_t text_left) {
-  TextColumn columns[WIDTH];
-  const bool touched = text_columns(glyphs, count, text_left, columns);
-  if (!touched && this->text_tube_blank_[tube]) {
-    return;
-  }
-  this->text_tube_blank_[tube] = !touched;
-
-  const Rgb &color = this->active_request_.color;
-  const uint16_t dim = this->current_dim_();
-  const uint16_t foreground =
-      to_wire(rgb565(((color.r * dim) >> 8) >> 3, ((color.g * dim) >> 8) >> 2, ((color.b * dim) >> 8) >> 3));
-  this->select_(1 << tube);
-  this->set_window_(0, WIDTH - 1, TEXT_FIRST_ROW, TEXT_FIRST_ROW + TEXT_ROWS - 1);
-  for (uint16_t row = 0; row < TEXT_ROWS; row += STRIP_ROWS) {
-    const uint16_t count_rows = TEXT_ROWS - row < STRIP_ROWS ? TEXT_ROWS - row : STRIP_ROWS;
-    for (uint16_t strip_row = 0; strip_row < count_rows; strip_row++) {
-      text_line(columns, row + strip_row, foreground, this->strip_ + strip_row * WIDTH);
-    }
-    this->send_pixels_(this->strip_, WIDTH * count_rows);
-  }
-  this->select_(0);
-  vTaskDelay(1);
-}
-
-bool ElekstubeIps::draw_text_frame_(uint32_t elapsed_ms) {
-  const AnimationRequest &request = this->active_request_;
-  if (!this->text_drawn_) {
-    this->draw_blank_(request.tube_mask);
-    memset(this->text_tube_blank_, 1, sizeof(this->text_tube_blank_));
-  }
-  if (!request.scroll) {
-    if (this->text_drawn_) {
-      vTaskDelay(CLOCK_POLL);
-      return false;
-    }
-    // One glyph per tube, from the leftmost selected tube, with the text centred among them.
-    uint8_t capacity = 0;
-    for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
-      capacity += (request.tube_mask >> tube) & 1;
-    }
-    int16_t position = -static_cast<int16_t>((capacity - request.text_length) / 2);
-    for (int8_t tube = TUBE_COUNT - 1; tube >= 0; tube--) {
-      if ((request.tube_mask & (1 << tube)) == 0) {
-        continue;
-      }
-      if (position >= 0 && position < request.text_length) {
-        const uint8_t glyph = request.text[position];
-        this->draw_text_tube_(tube, &glyph, 1, (WIDTH - text_glyph_width(glyph)) / 2);
-      }
-      position++;
-    }
-    this->text_drawn_ = true;
-    return true;
-  }
-
-  static constexpr uint32_t PIXELS_PER_SECOND = 160;
-  this->text_drawn_ = true;
-  const uint32_t width = text_width(request.text, request.text_length);
-  for (uint8_t tube = 0; tube < TUBE_COUNT; tube++) {
-    if ((request.tube_mask & (1 << tube)) == 0) {
-      continue;
-    }
-    const uint32_t tube_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000 - this->animation_start_ms_);
-    const uint32_t travelled = static_cast<uint64_t>(tube_ms) * PIXELS_PER_SECOND / 1000 % (TUBE_CANVAS_PIXELS + width);
-    this->draw_text_tube_(tube, request.text, request.text_length,
-                          TUBE_CANVAS_PIXELS - static_cast<int32_t>(travelled) - tube_canvas_left(tube));
-  }
-  return true;
-}
-
 bool ElekstubeIps::draw_clip_frame_() {
   const AnimationRequest &request = this->active_request_;
   if (!this->store_.ready()) {
@@ -1102,9 +1013,6 @@ void ElekstubeIps::draw_scene_patch_(const ScenePatch &patch, const uint8_t *dat
 
 bool ElekstubeIps::draw_animation_frame_(uint32_t elapsed_ms) {
   const AnimationRequest &request = this->active_request_;
-  if (request.effect == Effect::TEXT) {
-    return this->draw_text_frame_(elapsed_ms);
-  }
   if (request.effect == Effect::CLIP) {
     return this->draw_clip_frame_();
   }
@@ -1207,7 +1115,6 @@ void ElekstubeIps::begin_animation_(int64_t now_ms) {
   this->animation_start_ms32_.store(static_cast<uint32_t>(now_ms));
   memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
   memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
-  this->text_drawn_ = false;
   memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
   this->scene_frames_drawn_ = 0;
   this->scene_slowest_us_ = 0;
@@ -1475,7 +1382,6 @@ void ElekstubeIps::task_loop_() {
       if (redraw) {
         memset(this->shown_digits_, DIGIT_UNKNOWN, sizeof(this->shown_digits_));
         memset(this->sweep_lines_valid_, 0, sizeof(this->sweep_lines_valid_));
-        this->text_drawn_ = false;
         memset(this->clip_shown_frames_, 0xFF, sizeof(this->clip_shown_frames_));
       }
       uint8_t animated_tubes = 0;
