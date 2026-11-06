@@ -4,3 +4,6 @@
 secrets.yaml
 *.bin
 __pycache__/
+
+# Built by tools/build_themes.py, served by the site
+/site/themes/

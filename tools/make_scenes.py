@@ -596,12 +596,8 @@ THEME = ("Space", {
 })
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--preview", type=Path, help="write an animated GIF per scene to this folder")
-    args = parser.parse_args()
-
+def build_space(report=print):
+    """Draws the four scenes of the Space theme. Gives (library, [(name, fps, canvases)])."""
     makers = [("boot", boot_scene), ("connecting", orbit_scene), ("online", landing_scene), ("countdown_end", launch_scene)]
     made = [(name, *maker()) for name, maker in makers]
     entries = build_palette([canvases for _, _, canvases in made])
@@ -614,16 +610,25 @@ def main():
         size = len(scene.palette) + sum(map(len, scene.records)) + sum(map(len, scene.blobs))
         patches = sum(struct.unpack_from("<H", record)[0] for record in scene.records)
         pixels = sum(1 for _ in scene.blobs)
-        print(f"{name}: {len(canvases)} frames at {fps} fps, {size} bytes, {patches} patches, {pixels} unique blobs, lights {len(scene.leds)} bytes")
+        report(f"{name}: {len(canvases)} frames at {fps} fps, {size} bytes, {patches} patches, {pixels} unique blobs, lights {len(scene.leds)} bytes")
         clips.append((name, fps, scene))
-        if args.preview:
-            args.preview.mkdir(parents=True, exist_ok=True)
-            canvases[0].save(args.preview / f"{name}.gif", save_all=True, append_images=canvases[1:],
-                             duration=1000 // fps, loop=0)
+    return build_library(clips, theme=THEME), made
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--preview", type=Path, help="write an animated GIF per scene to this folder")
+    args = parser.parse_args()
+
     try:
-        library = build_library(clips, theme=THEME)
+        library, made = build_space()
     except ValueError as error:
         sys.exit(str(error))
+    if args.preview:
+        args.preview.mkdir(parents=True, exist_ok=True)
+        for name, fps, canvases in made:
+            canvases[0].save(args.preview / f"{name}.gif", save_all=True, append_images=canvases[1:], duration=1000 // fps, loop=0)
     args.output.write_bytes(library)
     print(f"{args.output}: {len(library)} of {REGION_BYTES} bytes")
 
