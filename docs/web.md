@@ -1,31 +1,42 @@
 # The web page of the clock
 
-Open `http://<clock>/` in a browser, on a phone or a computer on the same network. The page lives in the clock itself, compressed to 16 KB, and everything it does goes through the [HTTP API](api.md). It needs the `web` package, which `firmware/full.yaml` includes. While the clock offers its own network to set up the Wi-Fi, ESPHome's setup page is shown instead.
+Open `http://<clock>/` in a browser, on a phone or a computer on the same network. The page lives in the clock itself, compressed to about 24 KB, and everything it does goes through the [HTTP API](api.md). It needs the `web` package, which `firmware/full.yaml` includes. While the clock offers its own network to set up the Wi-Fi, ESPHome's setup page is shown instead.
 
-It speaks English or Spanish, depending on the browser.
+It is in English, light or dark following your device, and made for a phone first. It has three tabs.
 
-## What it does
+- **Clock:** the controls of the clock: displays (on and brightness), lights (on, color, brightness, effect), the display (12 or 24 hours, zero before the hour, digit change, night mode), the face that is shown, a countdown and a few effects.
+- **Files:** upload a file, see what is on the clock, and keep a backup.
+- **Settings:** timezone, a password, the firmware and its updates, and a few details of the clock.
 
-It is in English, light or dark following your device, and made for a phone first.
+## Files
 
-- **Clock:** the five slots for clock faces (one built into the firmware and room for more), a countdown, and a few effects.
-- **Style:** the theme, which is a set of four animations (startup, connecting, connected and the countdown finale) that the clock always needs and that change together, and a studio to make new faces.
-- **Settings:** timezone, a password, a backup of the faces and the theme, the firmware (a new `firmware.ota.bin` can be sent once a password is set), and a few details of the clock.
+The page takes `.bin` files of four kinds, as described in [format.md](format.md), and tells which one a file is by what is inside it, not by its name:
 
-Changes to faces and the theme wait in the page until you press **Apply**, which sends the whole store to the clock in about ten seconds.
+| File | What the clock does |
+|---|---|
+| Theme | Replaces the theme. The faces stay |
+| Face | Adds it in a free slot, or replaces one you choose |
+| Backup | Replaces everything: the faces and the theme |
+| Firmware | Updates the clock. Needs a password |
 
-## Making a face
+Choose the file, or drop it on the card. The page checks it with the rules of the clock (`checkBin` in `web/store.js`, the same as `tools/check_bin.py`) and shows what it is, who made it, its license and anything wrong with it, **before anything changes**. Every dialog has **Download a backup first**. A file that is not valid only offers Close.
 
-A face is ten images, one per digit, fitted to the 135×240 tubes.
+A theme or a face goes up as a new store: the page reads the store of the clock, makes the change in it, and sends the whole of it back, which takes about ten seconds. The faces can be removed one by one with the cross. The backup is the store as the clock has it, and uploading it brings it back.
 
-- **From a font.** Pick one of sixteen free fonts from [Fontsource](https://fontsource.org) (OFL or Apache licences) or use a font file of your own, then choose the size, the color of the digits, their glow and the background. A preview shows the digits and the six tubes. The font loads from the internet into your browser, never into the clock, so this needs internet on the device you browse from.
-- **From images.** Choose or drop ten images named 0 to 9, such as `0.png` or `digit-7.jpg`. Each is fitted to the tube on black.
+Themes and faces are made on the site of the project, in the browser, and come out as a file to upload here. A page on the site is served over HTTPS and cannot send anything to the clock, which speaks plain HTTP, so the way is always: make the file there, upload it here. The Files tab has links to the gallery and the creator, and [making-bins.md](making-bins.md) has the same by command line or with an AI assistant.
 
-The clock reads only baseline JPEG. Browsers write that when asked for a JPEG from a canvas, and the page checks for it.
+## Updates
+
+The clock never goes to the internet. The page does: when it is open, and at most once every two hours, it asks the site of the project for `versions.json`, which each release publishes, and compares it with the version of the clock (`version` in `/api/state`). If a newer one is there, Settings shows a dot and the notice with an **Update** button. Update downloads the firmware from the site, checks its SHA-256, and sends it to the clock like any other firmware file. The clock restarts, and goes back to the old firmware if the new one does not start. Without internet nothing is shown, and a firmware file can always be uploaded in Files. `web/update.js` holds this, and `tests/update.test.js` tests it.
+
+```json
+{"latest": "0.2.0", "date": "2026-11-20", "notes": "What changed",
+ "firmware": {"full": {"url": "https://yayitazale.github.io/dekatron/firmware/v0.2.0/dekatron-0.2.0-full.ota.bin", "sha256": "…"}}}
+```
 
 ## Working on the page
 
-The page is `web/index.html`, `style.css` and the scripts `store.js`, `timezones.js` and `app.js`. `tools/build_web.py` joins them into one compressed file that the firmware serves from `components/dekatron_api/web_index.h`. That file is committed, so building the firmware needs no Python, and a test fails when it is out of date.
+The page is `web/index.html`, `style.css` and the scripts `store.js`, `timezones.js`, `update.js` and `app.js`. `tools/build_web.py` joins them into one compressed file that the firmware serves from `components/dekatron_api/web_index.h`. That file is committed, so building the firmware needs no Python, and a test fails when it is out of date.
 
 To work on it without flashing the clock each time:
 
@@ -38,16 +49,12 @@ Open <http://127.0.0.1:8000/>. The page is rebuilt on every load, and the calls 
 ```bash
 python tools/build_web.py                          # after a change, before building the firmware
 python -m unittest discover -s tests               # the tools and the page build
-node --test tests/store.test.js                    # the store library of the page against the Python one
+node --test "tests/*.test.js"                      # the libraries of the page against the Python ones
 python tools/check_api.py elekstube.local store.bin  # the API, against a real clock
 ```
 
 `web/store.js` writes the same bytes as `tools/make_clips.py`, and a test compares them.
 
-## Creating a theme
+## The creator
 
-Themes are made on a page of their own, `site/creator/index.html`, which is meant for the static site of the project (GitHub Pages) and also works from a file. A page served over HTTPS cannot send anything to the clock, which speaks plain HTTP, and the clock has no need to carry the tool, so the page makes a theme file and nothing else: you download it, and on the page of the clock press **Change theme** in the Style tab, then **Apply**.
-
-For each of the four animations the creator takes an animated GIF, WebP or PNG, a video, or a numbered series of images. It fits each picture to the strip that crosses the six tubes (1370 × 240), chooses one palette of 255 colors for all four, stores only what changes between frames, and can give each tube's light the color of its picture. Nothing leaves the computer.
-
-`python tools/build_site.py` builds the page from `site/creator.template.html`, `site/creator-page.js` and the libraries `web/store.js`, `site/scene.js` and `site/creator.js`. The encoder in `site/scene.js` is tested byte for byte against `tools/make_scenes.py` in `tests/scene.test.js`. The Theme card of the clock's page has **Download theme file** to share the theme of the clock.
+The creator of themes and faces is a page of its own, `site/creator/index.html`, for the static site of the project. `python tools/build_site.py` builds it from `site/creator.template.html`, `site/creator-page.js` and the libraries `web/store.js`, `site/scene.js` and `site/creator.js`. The encoder in `site/scene.js` is tested byte for byte against `tools/make_scenes.py` in `tests/scene.test.js`.

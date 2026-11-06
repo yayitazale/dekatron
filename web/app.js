@@ -1,21 +1,25 @@
 // Copyright (c) 2026 Joseba Egia and Dekatron contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The page of the clock. It runs in the browser, and everything it does goes through the API in docs/api.md.
+// It controls the clock, uploads files (themes, faces, backups, firmware) and keeps a backup. Making themes
+// and faces is done on the site of the project, which cannot talk to the clock: a file is made there and
+// uploaded here.
 (() => {
   "use strict";
   const Store = DekatronStore;
   const Zones = DekatronZones;
+  const Update = DekatronUpdate;
 
-  const MAX_FACES = 5;
   const BUILT_IN = ["Nixie"]; // the face of the firmware, which the store does not hold
+  const MAX_FACES = Store.MAX_FACES + BUILT_IN.length;
   const FACE_COLORS = { Nixie: "#ff8a2a" };
   // A theme is these four animations, and the clock always needs all of them.
   const ROLES = [["boot", "Startup"], ["connecting", "Connecting"], ["online", "Connected"], ["countdown_end", "Countdown finale"]];
-  const VIEWS = ["clock", "style", "settings"];
-  const TITLES = { clock: "Clock", style: "Style", settings: "Settings" };
+  const VIEWS = ["clock", "files", "settings"];
+  const TITLES = { clock: "Clock", files: "Files", settings: "Settings" };
   const ICONS = {
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    style: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+    files: '<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5L12 11l2.5 2.5"/>',
     settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     play: '<path d="M8 5l11 7-11 7z"/>',
     moon: '<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>',
@@ -46,13 +50,13 @@
     offline: false,
     view: VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "clock",
     password: sessionStorage.getItem("dekatron-password"),
-    working: null, // the store as the page has it, which may differ from the clock's
-    dirty: false,
-    pendingSize: 0,
+    store: null, // the store of the clock as the page last read it, for the faces and the theme it shows
     loadingStore: false,
     previews: new Map(),
     busy: false,
     shown: "",
+    update: null, // a newer release, if the site of the project has one
+    updateChecked: false,
   };
 
   // ---- light and dark -------------------------------------------------------------------------
@@ -168,9 +172,9 @@
   // ---- the state of the clock -----------------------------------------------------------------
 
   const signature = () => JSON.stringify([
-    app.view, app.dirty, app.working && app.working.entries.map((entry) => entry.name),
+    app.view, app.store && app.store.entries.map((entry) => entry.name), app.update && app.update.version,
     app.state && [app.state.faces, app.state.clips, app.state.settings, app.state.store.size, app.state.store.status,
-      /^countdown/.test(app.state.animation), app.state.controls],
+      /^countdown/.test(app.state.animation), app.state.controls, app.state.version],
   ]);
 
   async function refresh() {
@@ -182,6 +186,10 @@
       app.offline = true;
     }
     updateStatus();
+    if (app.state && !app.updateChecked) {
+      app.updateChecked = true;
+      checkUpdate(false).then(() => { if (signature() !== app.shown) render(); });
+    }
     // The page is drawn again only when something changed, and never under the hands of someone typing.
     if (signature() !== app.shown && !document.activeElement?.matches("input, select")) render();
   }
@@ -201,11 +209,10 @@
     }
   }
 
-  // ---- the store, as the page holds it --------------------------------------------------------
+  // ---- the store, as the clock has it ----------------------------------------------------------
 
-  function setWorking(parsed, dirty) {
-    app.working = parsed;
-    app.dirty = dirty;
+  function setStore(parsed) {
+    app.store = parsed;
     for (const links of app.previews.values()) links.forEach((link) => URL.revokeObjectURL(link));
     app.previews.clear();
     for (const entry of parsed.entries) {
@@ -213,21 +220,21 @@
         app.previews.set(entry.name, [1, 2, 3, 4].map((digit) => URL.createObjectURL(new Blob([entry.images[digit]], { type: "image/jpeg" }))));
       }
     }
-    app.pendingSize = 0;
-    try { app.pendingSize = parsed.entries.length ? Store.build(parsed.entries).length : 0; } catch (error) { /* shown when applying */ }
+  }
+
+  // The store as it is in the clock now, which is what a change starts from. A clock with none has no entries.
+  async function fetchStore() {
+    if (!app.state.store.ready) return { entries: [], size: 0 };
+    const response = await request("GET", "/api/store");
+    if (!response.ok) throw new Error(`error ${response.status}`);
+    return Store.parse(new Uint8Array(await response.arrayBuffer()));
   }
 
   async function loadStore() {
-    if (app.working || app.loadingStore || !app.state) return;
-    if (!app.state.store.ready) {
-      setWorking({ entries: [], size: 0 }, false);
-      return;
-    }
+    if (app.store || app.loadingStore || !app.state) return;
     app.loadingStore = true;
     try {
-      const response = await request("GET", "/api/store");
-      if (!response.ok) throw new Error(`error ${response.status}`);
-      setWorking(Store.parse(new Uint8Array(await response.arrayBuffer())), false);
+      setStore(await fetchStore());
       render();
     } catch (error) {
       toast(error.message, true);
@@ -236,29 +243,24 @@
     }
   }
 
-  const storeFaces = () => (app.working ? app.working.entries.filter((entry) => entry.kind === Store.KIND_FACE) : []);
+  const storeFaces = (entries = app.store ? app.store.entries : []) => entries.filter((entry) => entry.kind === Store.KIND_FACE);
+  const storeTheme = (entries = app.store ? app.store.entries : []) => entries.find((entry) => entry.kind === Store.KIND_THEME);
 
-  function edit(entries) {
-    setWorking({ entries, size: 0 }, true);
-    render();
-  }
-
-  async function apply() {
-    let bytes;
+  // Sends a new store, which replaces the whole previous one in the clock.
+  async function sendStore(bytes, what) {
     try {
-      bytes = Store.build(app.working.entries, app.state.store.capacity);
       Store.parse(bytes); // what is sent has been read back the way the clock will read it
     } catch (error) {
       return toast(error.message, true);
     }
     const progress = h("progress", { max: 1, value: 0 });
-    const shown = dialog("Sending to the clock…", progress, []);
+    const shown = dialog("Sending to the clock…", h("div", {}, progress, h("p", { class: "muted" }, "It takes about ten seconds, and the tubes move more slowly meanwhile.")), []);
     app.busy = true;
     try {
       await upload(bytes, (fraction) => { progress.value = fraction; });
       app.busy = false;
-      setWorking(Store.parse(bytes), false);
-      toast("The clock has the new store");
+      setStore(Store.parse(bytes));
+      toast(what);
     } catch (error) {
       toast(error.message, true);
     } finally {
@@ -269,11 +271,15 @@
     render();
   }
 
+  function build(entries) {
+    return Store.build(entries, app.state.store.capacity);
+  }
+
   // A firmware file is checked before it is sent, and the clock checks it again before it takes it.
-  async function sendFirmware(file) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (bytes.length < 100000 || bytes.length > 1441792 || bytes[0] !== 0xe9) {
-      return toast("That is not a firmware file. Use firmware.ota.bin", true);
+  async function sendFirmware(bytes) {
+    const report = Store.checkBin(bytes);
+    if (report.type !== "firmware" || !report.ok) {
+      return toast(report.problems[0] ? report.problems[0].message : "That is not a firmware file. Use firmware.ota.bin", true);
     }
     const progress = h("progress", { max: 1, value: 0 });
     const shown = dialog("Sending the firmware…", h("div", {}, progress, h("p", { class: "muted" }, "Do not unplug the clock.")), []);
@@ -297,22 +303,32 @@
     location.reload();
   }
 
-  function confirmApply() {
-    const box = dialog("Send the changes to the clock?",
-      h("p", { class: "muted" }, "It takes about ten seconds, and the tubes move more slowly meanwhile. The file is checked first: one damaged on the way would leave the clock with no store."), [
-        h("button", { class: "btn primary", onclick: () => { box.close(); apply(); } }, "Send"),
-        h("button", { class: "btn", onclick: () => box.close() }, "Cancel"),
-      ]);
+  function saveFile(bytes, name) {
+    const link = h("a", { href: URL.createObjectURL(new Blob([bytes])), download: name });
+    document.body.append(link);
+    link.click();
+    link.remove();
   }
 
-  async function download() {
+  const today = () => new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
+  async function downloadBackup() {
     try {
       const response = await request("GET", "/api/store");
       if (!response.ok) throw new Error(`error ${response.status}`);
-      const link = h("a", { href: URL.createObjectURL(await response.blob()), download: "dekatron-backup.bin" });
-      document.body.append(link);
-      link.click();
-      link.remove();
+      saveFile(await response.blob(), `dekatron-backup-${today()}.bin`);
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  // The theme of the store as a file of its own, which the clock takes in Files.
+  function downloadTheme() {
+    try {
+      const entries = app.store.entries;
+      const clips = ROLES.map(([name]) => entries.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
+      if (!storeTheme() || clips.includes(undefined)) throw new Error("The theme is not complete");
+      saveFile(Store.build([storeTheme(), ...clips]), `${storeTheme().name}.theme.bin`);
     } catch (error) {
       toast(error.message, true);
     }
@@ -330,6 +346,8 @@
   // A title can be a pair: the name of the card, and something small on its right.
   const card = (title, ...content) => h("section", { class: "card" },
     h("h2", {}, Array.isArray(title) ? [title[0], h("span", {}, title[1])] : title), content);
+
+  const kilobytes = (bytes) => (bytes >= 1048576 ? (bytes / 1048576).toFixed(2) + " MB" : Math.round(bytes / 1024) + " KB");
 
   // ---- the controls of the clock ---------------------------------------------------------------
 
@@ -389,23 +407,12 @@
         night.brightness === undefined ? "" : slider("Dimmed to", night.brightness, 0, 100, 5, (value) => control({ night: { brightness: value } }))));
   }
 
-  function pendingBar() {
-    if (!app.dirty) return "";
-    return h("div", { class: "bar" }, h("span", {}, "The clock does not have these changes yet"), h("span", { class: "row" },
-      h("button", { class: "btn primary", onclick: confirmApply }, "Apply"),
-      h("button", { class: "btn", onclick: () => { app.working = null; app.dirty = false; refresh().then(loadStore); } }, "Discard")));
-  }
-
   // ---- clock -----------------------------------------------------------------------------------
 
-  // The faces in their five slots: the ones of the firmware, then those of the store.
+  // The faces in their five slots: the one of the firmware, then those of the store.
   function faceSlots() {
     const live = app.state.faces;
-    const builtIn = live.filter((name) => BUILT_IN.includes(name)).map((name) => ({ name, builtIn: true, live: true }));
-    const others = app.working
-      ? storeFaces().map((entry) => ({ name: entry.name, entry, live: live.includes(entry.name) }))
-      : live.filter((name) => !BUILT_IN.includes(name)).map((name) => ({ name, live: true }));
-    return [...builtIn, ...others];
+    return [...live.filter((name) => BUILT_IN.includes(name)), ...live.filter((name) => !BUILT_IN.includes(name))].map((name) => ({ name, builtIn: BUILT_IN.includes(name) }));
   }
 
   function faceSlot(face, state) {
@@ -413,10 +420,9 @@
     const content = preview
       ? h("img", { src: preview[1], alt: "" })
       : h("span", { style: `color:${FACE_COLORS[face.name] || "#ffb020"};text-shadow:0 0 10px currentColor` }, "12");
-    const pick = h("button", { class: "slot" + (state.settings.face === face.name ? " on" : "") + (face.live ? "" : " pending"), "aria-label": face.name,
-      onclick: () => (face.live ? act(() => call("POST", "/api/settings", { face: face.name })) : toast("Apply the changes first", true)) }, content);
-    return h("div", { class: "cell" }, pick,
-      face.builtIn ? "" : h("button", { class: "x", "aria-label": `Remove ${face.name}`, onclick: () => edit(app.working.entries.filter((entry) => entry !== face.entry)) }, "×"));
+    return h("div", { class: "cell" },
+      h("button", { class: "slot" + (state.settings.face === face.name ? " on" : ""), "aria-label": face.name,
+        onclick: () => act(() => call("POST", "/api/settings", { face: face.name })) }, content));
   }
 
   const go = (view) => { location.hash = view; };
@@ -427,14 +433,16 @@
     const faces = faceSlots();
     const slots = [...Array(MAX_FACES).keys()].map((index) => faces[index]
       ? faceSlot(faces[index], state)
-      : h("div", { class: "cell" }, h("button", { class: "slot empty", "aria-label": "Add a face", onclick: () => { app.slot = "free"; go("style"); } }, "+")));
+      : h("div", { class: "cell" }, h("button", { class: "slot empty", "aria-label": "Add a face", onclick: () => go("files") }, "+")));
     const seconds = h("input", { type: "number", min: 1, max: 3600, value: 10, "aria-label": "Seconds" });
     const minutes = h("input", { type: "number", min: 1, max: 60, value: 5, "aria-label": "Minutes" });
     const running = /^countdown/.test(state.animation);
+    const controls = state.controls || {};
 
     return h("div", {},
-      cardDisplays(state.controls || {}),
-      cardLights(state.controls || {}),
+      cardDisplays(controls),
+      cardLights(controls),
+      cardDisplay(controls),
       card(["Clock face", `${MAX_FACES - faces.length} of ${MAX_FACES} free`], h("div", { class: "slots" }, slots),
         h("div", { class: "names" }, [...Array(MAX_FACES).keys()].map((index) => h("span", {}, faces[index] ? faces[index].name : "free")))),
       card("Countdown",
@@ -449,24 +457,122 @@
           h("button", { class: "chip", onclick: () => act(() => call("POST", "/api/play", { type: "effect", name, duration: +seconds.value || 10 })) }, name)))));
   }
 
-  // ---- style -----------------------------------------------------------------------------------
+  // ---- files -----------------------------------------------------------------------------------
 
-  const themeEntry = () => (app.working ? app.working.entries.find((entry) => entry.kind === Store.KIND_THEME) : null);
+  const byLine = (info) => [info.author && `by ${info.author}`, info.license].filter(Boolean).join(" · ");
 
-  function viewTheme() {
-    const clips = app.state.clips;
-    const fileInput = h("input", { type: "file", hidden: true, onchange: async (event) => {
-      try {
-        const parsed = Store.parse(new Uint8Array(await event.target.files[0].arrayBuffer()));
-        const wanted = ROLES.map(([name]) => parsed.entries.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
-        if (wanted.includes(undefined)) throw new Error("That is not a theme: it needs boot, connecting, online and countdown_end");
-        const named = parsed.entries.find((entry) => entry.kind === Store.KIND_THEME);
-        // The theme of the file takes the place of the one of the clock, and the faces stay.
-        edit([...storeFaces(), ...(named ? [named] : []), ...wanted]);
-      } catch (error) {
-        toast(error.message, true);
+  // What a file is, shown before anything changes, with what the clock will do and the way back.
+  async function openFile(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const report = Store.checkBin(bytes);
+    const names = { theme: "Theme", face: "Clock face", backup: "Backup", firmware: "Firmware" };
+    const title = report.type === "unknown" ? "Not a file for the clock" : `${names[report.type]}${report.name ? `: ${report.name}` : ""}`;
+    const lines = [
+      report.type !== "unknown" ? h("p", { class: "muted" }, [byLine(report.info), kilobytes(bytes.length)].filter(Boolean).join(" · ")) : "",
+      report.info.description ? h("p", { class: "muted" }, report.info.description) : "",
+      report.problems.length ? h("ul", { class: "problems" }, report.problems.map((problem) => h("li", {}, problem.message))) : "",
+      report.ok && report.warnings.length ? h("ul", { class: "notes" }, report.warnings.map((warning) => h("li", {}, warning.message))) : "",
+    ];
+    let box;
+    const close = () => box.close();
+    const cancel = h("button", { class: "btn", onclick: close }, report.ok ? "Cancel" : "Close");
+    const choose = h("select", { class: "grow", "aria-label": "Slot" });
+    const backupFirst = h("button", { class: "btn", onclick: downloadBackup }, "Download a backup first");
+    const action = (label, work) => h("button", { class: "btn primary", onclick: () => { close(); work(); } }, label);
+    const buttons = [];
+    const extra = [];
+
+    if (report.ok && report.type === "theme") {
+      extra.push(h("p", { class: "muted" }, "It replaces the theme of the clock. The faces stay."));
+      buttons.push(action("Install theme", () => installTheme(bytes)), backupFirst);
+    } else if (report.ok && report.type === "face") {
+      if (!app.store) await loadStore();
+      const faces = storeFaces();
+      if (faces.length < Store.MAX_FACES) choose.append(h("option", { value: "free" }, `Add as a new face (${Store.MAX_FACES - faces.length} free)`));
+      for (const [index, entry] of faces.entries()) {
+        choose.append(h("option", { value: String(index) }, entry.name === report.name ? `Replace ${entry.name} (same name)` : `Replace ${entry.name}`));
       }
-    } });
+      const same = faces.findIndex((entry) => entry.name === report.name);
+      if (same >= 0) choose.value = String(same);
+      extra.push(h("div", { class: "row" }, choose));
+      buttons.push(action("Install face", () => installFace(bytes, choose.value)), backupFirst);
+    } else if (report.ok && report.type === "backup") {
+      extra.push(h("p", { class: "muted" }, "It replaces everything the clock keeps: all the faces and the theme."));
+      buttons.push(action("Restore", () => sendStore(bytes, "The clock has the backup")), backupFirst);
+    } else if (report.ok && report.type === "firmware") {
+      if (app.state.settings.password) {
+        extra.push(h("p", { class: "muted" }, "The clock checks it, restarts, and keeps the old firmware if the new one does not start."));
+        buttons.push(action("Install firmware", () => sendFirmware(bytes)));
+      } else {
+        extra.push(h("p", { class: "muted" }, "Set a password first, in Settings. Nobody should be able to send a program to the clock without one."));
+      }
+    }
+    box = dialog(title, h("div", {}, lines, extra), [...buttons, cancel]);
+  }
+
+  async function installTheme(bytes) {
+    try {
+      const incoming = Store.parse(bytes).entries;
+      const clips = ROLES.map(([name]) => incoming.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
+      const current = (await fetchStore()).entries;
+      // The theme of the file takes the place of the one of the clock, and the faces stay.
+      const next = [...storeFaces(current), ...incoming.filter((entry) => entry.kind === Store.KIND_THEME), ...clips];
+      await sendStore(build(next), "The clock has the new theme");
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  async function installFace(bytes, slot) {
+    try {
+      const face = Store.parse(bytes).entries.find((entry) => entry.kind === Store.KIND_FACE);
+      const current = (await fetchStore()).entries;
+      const faces = storeFaces(current);
+      const replaced = slot === "free" ? undefined : faces[+slot];
+      if (!replaced && faces.length >= Store.MAX_FACES) throw new Error("All the slots are in use. Choose one to replace");
+      if (faces.some((entry) => entry.name === face.name && entry !== replaced)) throw new Error("A face with that name is already there. Choose it to replace");
+      const next = replaced ? current.map((entry) => (entry === replaced ? face : entry)) : [...current, face];
+      await sendStore(build(next), `The clock has ${face.name}`);
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  function removeFace(entry) {
+    const box = dialog(`Remove ${entry.name}?`, h("p", { class: "muted" }, "The face is deleted from the clock. Download a backup first if you want to keep it."), [
+      h("button", { class: "btn danger", onclick: async () => {
+        box.close();
+        try {
+          const next = (await fetchStore()).entries.filter((candidate) => candidate.kind !== Store.KIND_FACE || candidate.name !== entry.name);
+          if (!next.length) throw new Error("The store cannot be empty: install a theme or a face first");
+          await sendStore(build(next), `${entry.name} is removed`);
+        } catch (error) {
+          toast(error.message, true);
+        }
+      } }, "Remove"),
+      h("button", { class: "btn", onclick: () => box.close() }, "Cancel"),
+    ]);
+  }
+
+  function cardUpload() {
+    const input = h("input", { type: "file", accept: ".bin", hidden: true, onchange: (event) => { const file = event.target.files[0]; event.target.value = ""; if (file) openFile(file); } });
+    const box = card("Upload a file",
+      h("p", { class: "muted" }, "A theme, a clock face, a backup or a firmware, as a .bin file. The page says what it is before it changes anything."),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => input.click() }, "Choose a file"), input),
+      h("p", { class: "muted" }, "You can also drop it here."));
+    box.classList.add("drop");
+    box.addEventListener("dragover", (event) => { event.preventDefault(); box.classList.add("over"); });
+    box.addEventListener("dragleave", () => box.classList.remove("over"));
+    box.addEventListener("drop", (event) => { event.preventDefault(); box.classList.remove("over"); if (event.dataTransfer.files[0]) openFile(event.dataTransfer.files[0]); });
+    return box;
+  }
+
+  function cardInstalled() {
+    if (!app.store) return card("On the clock", h("p", { class: "muted" }, "Loading…"));
+    const entries = app.store.entries;
+    const theme = storeTheme();
+    const info = theme ? Store.themeInfo(theme) : {};
+    const clips = app.state.clips;
     const rows = ROLES.map(([name, label]) => {
       const clip = clips.find((candidate) => candidate.name === name);
       return h("div", { class: "item" },
@@ -474,259 +580,126 @@
         h("div", { class: "grow" }, h("div", { class: "name" }, label),
           h("div", { class: "muted" }, clip ? `${(clip.frames / clip.fps).toFixed(1)} s · ${clip.fps} fps` : "Missing", clip && clip.leds ? h("span", { class: "tag" }, "lights") : "")));
     });
-    const entry = themeEntry();
-    const info = entry ? Store.themeInfo(entry) : {};
-    const bytes = app.working ? app.working.entries.filter((candidate) => candidate.kind === Store.KIND_CLIP)
-      .reduce((total, candidate) => total + candidate.images.reduce((sum, image) => sum + image.length, 0), 0) : 0;
-    const details = [info.author && `by ${info.author}`, bytes ? kilobytes(bytes) : ""].filter(Boolean).join(" · ");
-    return card("Theme",
-      h("div", { class: "row between" },
-        h("div", {}, h("div", { class: "big" }, entry ? entry.name : "No theme"), h("div", { class: "muted" }, details)),
-        h("button", { class: "btn primary", onclick: () => fileInput.click() }, "Change theme"), fileInput),
-      info.description ? h("p", { class: "muted", style: "margin:10px 0 14px" }, info.description) : "",
-      h("div", {}, rows),
-      entry ? h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn", onclick: downloadTheme }, "Download theme file")) : "");
-  }
-
-  // The theme of the working copy as a file of its own, which Change theme can take.
-  function downloadTheme() {
-    try {
-      const clips = ROLES.map(([name]) => app.working.entries.find((entry) => entry.kind === Store.KIND_CLIP && entry.name === name));
-      if (!themeEntry() || clips.includes(undefined)) throw new Error("The theme is not complete");
-      const bytes = Store.build([themeEntry(), ...clips]);
-      const link = h("a", { href: URL.createObjectURL(new Blob([bytes])), download: `${themeEntry().name}.bin` });
-      document.body.append(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      toast(error.message, true);
-    }
-  }
-
-  function imageToJpeg(file) {
-    return new Promise((resolve, reject) => {
-      const link = URL.createObjectURL(file);
-      const image = new Image();
-      image.onerror = () => { URL.revokeObjectURL(link); reject(new Error(`${file.name} is not an image`)); };
-      image.onload = () => {
-        URL.revokeObjectURL(link);
-        const canvas = h("canvas", { width: 135, height: 240 });
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#000";
-        context.fillRect(0, 0, 135, 240);
-        const scale = Math.min(135 / image.naturalWidth, 240 / image.naturalHeight);
-        const width = Math.max(1, Math.round(image.naturalWidth * scale));
-        const height = Math.max(1, Math.round(image.naturalHeight * scale));
-        context.imageSmoothingQuality = "high";
-        context.drawImage(image, (135 - width) >> 1, (240 - height) >> 1, width, height);
-        canvas.toBlob(async (blob) => {
-          if (!blob) return reject(new Error("That image cannot be used"));
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-          // The clock cannot read a progressive JPEG, which is marked SOF2 where a baseline one has SOF0.
-          for (let i = 2; i + 1 < bytes.length; ) {
-            if (bytes[i] !== 0xff) { i++; continue; }
-            if (bytes[i + 1] === 0xc2) return reject(new Error("The clock reads only baseline JPEG"));
-            if (bytes[i + 1] === 0xc0) break;
-            i += 2 + ((bytes[i + 2] << 8) | bytes[i + 3]);
-          }
-          resolve(bytes);
-        }, "image/jpeg", 0.88);
-      };
-      image.src = link;
+    const faces = storeFaces(entries).map((entry) => {
+      const preview = app.previews.get(entry.name);
+      const faceInfo = Store.faceInfo(entry);
+      return h("div", { class: "item" },
+        h("div", { class: "thumb" }, preview ? h("img", { src: preview[1], alt: "" }) : ""),
+        h("div", { class: "grow" }, h("div", { class: "name" }, entry.name), h("div", { class: "muted" }, byLine(faceInfo) || "No author")),
+        h("button", { class: "x2", "aria-label": `Remove ${entry.name}`, onclick: () => removeFace(entry) }, "×"));
     });
+    return card("On the clock",
+      h("div", { class: "big" }, theme ? theme.name : "No theme"),
+      h("div", { class: "muted" }, [byLine(info), `store ${kilobytes(app.state.store.size)}`].filter(Boolean).join(" · ")),
+      info.description ? h("p", { class: "muted", style: "margin:8px 0 0" }, info.description) : "",
+      h("div", { style: "margin-top:12px" }, rows),
+      h("h2", { style: "margin:18px 0 8px" }, "Faces"),
+      h("div", {}, faces.length ? faces : h("p", { class: "muted" }, "Only the built-in face. Upload a face to add more.")));
   }
 
-  // A face goes to the working copy of the store, and from there to the clock when it is applied.
-  // The slot is "free" for the next free one, or the position among the faces of the store, which then is replaced.
-  function addFace(name, images, slot = "free") {
-    if (!name) return toast("Give the face a name", true);
-    const replaced = slot === "free" ? undefined : storeFaces()[+slot];
-    if (!replaced && faceSlots().length >= MAX_FACES) return toast("All five slots are in use. Choose one to replace", true);
-    if (faceSlots().some((face) => face.name === name && face.entry !== replaced)) return toast("A face with that name already exists", true);
-    try {
-      const face = Store.face(name, images);
-      const entries = replaced ? app.working.entries.map((entry) => (entry === replaced ? face : entry)) : [...app.working.entries, face];
-      Store.build(entries, app.state.store.capacity);
-      app.slot = undefined;
-      edit(entries);
-      go("clock");
-    } catch (error) {
-      toast(error.message, true);
-    }
-  }
-
-  function imagesPanel(nameInput, slotInput) {
-    const picked = new Map();
-    const status = h("p", { class: "muted" });
-    const create = h("button", { class: "btn primary", disabled: true }, "Add");
-    const input = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true });
-    const update = () => {
-      const missing = [...Array(10).keys()].filter((digit) => !picked.has(digit));
-      status.textContent = picked.size ? `${picked.size} of 10 digits${missing.length ? `, missing ${missing.join(", ")}` : ""}` : "";
-      create.disabled = missing.length > 0;
-    };
-    const take = (files) => {
-      for (const file of files) {
-        const match = file.name.replace(/\.[^.]*$/, "").match(/(?:^|\D)(\d)(?:\D|$)/);
-        if (match) picked.set(+match[1], file);
-      }
-      update();
-    };
-    input.addEventListener("change", () => take(input.files));
-    create.addEventListener("click", async () => {
-      try {
-        addFace(nameInput.value.trim(), await Promise.all([...Array(10).keys()].map((digit) => imageToJpeg(picked.get(digit)))), slotInput.value);
-      } catch (error) {
-        toast(error.message, true);
-      }
-    });
-    const panel = h("div", {},
-      h("div", { class: "row" }, h("button", { class: "btn", onclick: () => input.click() }, "Choose ten images"), input, create), status,
-      h("p", { class: "muted" }, "Name the files 0 to 9, such as 0.png or digit-7.jpg. Each is fitted to the 135×240 tube on black. You can also drop them here."));
-    panel.addEventListener("dragover", (event) => event.preventDefault());
-    panel.addEventListener("drop", (event) => { event.preventDefault(); take(event.dataTransfer.files); });
-    return panel;
-  }
-
-  // Free fonts of Fontsource, which serves each as a file under cdn.jsdelivr.net.
-  const FONTS = [
-    ["orbitron", "Orbitron"], ["share-tech-mono", "Share Tech Mono"], ["audiowide", "Audiowide"], ["bungee", "Bungee"],
-    ["monoton", "Monoton"], ["major-mono-display", "Major Mono Display"], ["syncopate", "Syncopate"], ["bebas-neue", "Bebas Neue"],
-    ["oswald", "Oswald"], ["roboto-mono", "Roboto Mono"], ["space-mono", "Space Mono"], ["playfair-display", "Playfair Display"],
-    ["press-start-2p", "Press Start 2P"], ["vt323", "VT323"], ["black-ops-one", "Black Ops One"], ["rubik-mono-one", "Rubik Mono One"],
-  ];
-
-  // Draws the ten digits in a font, each on its own 135 x 240 canvas, on one baseline so the digits do not jump.
-  function renderDigits(family, { size, color, glow, background }) {
-    const probe = h("canvas", { width: 10, height: 10 }).getContext("2d");
-    probe.font = `100px ${family}`;
-    const zero = probe.measureText("0");
-    const inkHeight = zero.actualBoundingBoxAscent + zero.actualBoundingBoxDescent || 100;
-    let pixels = (100 * (240 * size)) / inkHeight;
-    const widest = () => Math.max(...[...Array(10).keys()].map((digit) => {
-      probe.font = `${pixels}px ${family}`;
-      const ink = probe.measureText(String(digit));
-      return ink.actualBoundingBoxLeft + ink.actualBoundingBoxRight;
-    }));
-    if (widest() > 123) pixels *= 123 / widest();
-    probe.font = `${pixels}px ${family}`;
-    const base = probe.measureText("0");
-    const baseline = (240 + base.actualBoundingBoxAscent - base.actualBoundingBoxDescent) / 2;
-    return [...Array(10).keys()].map((digit) => {
-      const canvas = h("canvas", { width: 135, height: 240 });
-      const context = canvas.getContext("2d");
-      context.fillStyle = background;
-      context.fillRect(0, 0, 135, 240);
-      context.font = `${pixels}px ${family}`;
-      context.textBaseline = "alphabetic";
-      context.textAlign = "left";
-      const ink = context.measureText(String(digit));
-      const x = 67.5 - (ink.actualBoundingBoxRight - ink.actualBoundingBoxLeft) / 2;
-      context.fillStyle = color;
-      context.shadowColor = color;
-      for (const blur of glow ? [glow, glow / 2] : [0]) {
-        context.shadowBlur = blur;
-        context.fillText(String(digit), x, baseline);
-      }
-      return canvas;
-    });
-  }
-
-  function fontPanel(nameInput, slotInput) {
-    const family = `dk-face-${Math.random().toString(36).slice(2, 8)}`;
-    let loaded = false;
-    const select = h("select", { class: "grow", "aria-label": "Font" }, FONTS.map(([id, label]) => h("option", { value: id }, label)));
-    const file = h("input", { type: "file", accept: ".ttf,.otf,.woff,.woff2", hidden: true });
-    const size = h("input", { type: "range", min: 40, max: 90, value: 62, "aria-label": "Size" });
-    const glow = h("input", { type: "range", min: 0, max: 30, value: 12, "aria-label": "Glow" });
-    const color = h("input", { type: "color", value: "#ffb020", "aria-label": "Digit color" });
-    const back = h("input", { type: "color", value: "#000000", "aria-label": "Background color" });
-    const strip = h("div", { class: "digits" });
-    const tubes = h("div", { class: "digits tubes" });
-    const add = h("button", { class: "btn primary", disabled: true }, "Add");
-    let rendered = [];
-
-    function redraw() {
-      if (!loaded) return;
-      rendered = renderDigits(`"${family}"`, { size: size.value / 100, color: color.value, glow: +glow.value, background: back.value });
-      const show = (canvases, scale) => canvases.map((source) => {
-        const canvas = h("canvas", { width: Math.round(135 * scale), height: Math.round(240 * scale) });
-        canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
-        return canvas;
-      });
-      strip.replaceChildren(...show(rendered, 0.3));
-      // The six tubes of the clock, with the time they would show.
-      tubes.replaceChildren(...show([1, 2, 3, 4, 5, 6].map((digit) => rendered[digit % 10]), 0.34));
-      add.disabled = false;
-    }
-    async function load(source) {
-      try {
-        const font = new FontFace(family, source);
-        await font.load();
-        document.fonts.add(font);
-        loaded = true;
-        redraw();
-      } catch (error) {
-        loaded = false;
-        add.disabled = true;
-        toast("The font could not be loaded", true);
-      }
-    }
-    const fromList = () => load(`url(https://cdn.jsdelivr.net/fontsource/fonts/${select.value}@latest/latin-400-normal.woff2)`);
-    select.addEventListener("change", fromList);
-    file.addEventListener("change", async () => file.files[0] && load(await file.files[0].arrayBuffer()));
-    for (const control of [size, glow, color, back]) control.addEventListener("input", redraw);
-    add.addEventListener("click", async () => {
-      try {
-        const images = await Promise.all(rendered.map(async (canvas) => {
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-          return new Uint8Array(await blob.arrayBuffer());
-        }));
-        addFace(nameInput.value.trim() || select.options[select.selectedIndex].text.slice(0, 15), images, slotInput.value);
-      } catch (error) {
-        toast(error.message, true);
-      }
-    });
-    fromList();
-    return h("div", {},
-      h("div", { class: "row" }, select, h("button", { class: "btn", onclick: () => file.click() }, "Use a font file"), file),
-      h("div", { class: "row" }, h("span", { class: "muted" }, "Size"), size, h("span", { class: "muted" }, "Glow"), glow),
-      h("div", { class: "row" }, h("span", { class: "muted" }, "Digits"), color, h("span", { class: "muted" }, "Background"), back, add),
-      h("p", { class: "muted", style: "margin-top:12px" }, "Preview"), strip, tubes,
-      h("p", { class: "muted", style: "margin-top:12px" }, "The fonts come from Fontsource, with free licences, and load from the internet into your browser, not the clock. A file of your own is only used here."));
-  }
-
-  function cardStudio() {
-    const name = h("input", { type: "text", maxlength: 15, placeholder: "Name of the face", class: "grow" });
-    // Slot 1 is the Nixie of the firmware. The others are the faces of the store, in order, and a free one comes last.
-    const placed = storeFaces();
-    const options = placed.map((entry, index) => h("option", { value: index }, `Slot ${BUILT_IN.length + index + 1}: replace ${entry.name}`));
-    if (faceSlots().length < MAX_FACES) options.push(h("option", { value: "free" }, `Slot ${faceSlots().length + 1}: free`));
-    const slot = h("select", { class: "grow", "aria-label": "Slot" }, options);
-    slot.value = app.slot !== undefined && [...slot.options].some((option) => option.value === app.slot) ? app.slot : options[options.length - 1].value;
-    const body = h("div", { style: "margin-top:12px" });
-    const modes = { images: () => imagesPanel(name, slot), font: () => fontPanel(name, slot) };
-    const buttons = {};
-    const choose = (mode) => {
-      body.replaceChildren(modes[mode]());
-      for (const [key, button] of Object.entries(buttons)) button.classList.toggle("on", key === mode);
-    };
-    for (const [key, label] of [["font", "From a font"], ["images", "From images"]]) {
-      buttons[key] = h("button", { class: "chip", onclick: () => choose(key) }, label);
-    }
-    const box = card("New face", h("div", { class: "row" }, name), h("div", { class: "row", style: "margin-top:12px" }, slot), h("div", { class: "chips", style: "margin-top:12px" }, buttons.font, buttons.images), body);
-    choose("font");
-    return box;
-  }
-
-  function viewStyle() {
+  function viewFiles() {
     loadStore();
-    return h("div", {}, viewTheme(), app.working ? cardStudio() : card("New face", h("p", { class: "muted" }, "Loading…")));
+    const state = app.state;
+    return h("div", {},
+      cardUpload(),
+      cardInstalled(),
+      card("Backup",
+        h("p", { class: "muted" }, `The faces and the theme of the clock, ${kilobytes(state.store.size)}. Keep a copy before trying things; uploading a backup file brings it back.`),
+        h("div", { class: "row" },
+          h("button", { class: "btn", disabled: !state.store.ready, onclick: downloadBackup }, "Download backup"),
+          h("button", { class: "btn", disabled: !storeTheme(), onclick: downloadTheme }, "Download theme"))),
+      card("Make your own",
+        h("p", { class: "muted" }, "Themes and faces are made on the site of the project, in your browser, and come out as a file to upload here. The site cannot talk to the clock itself."),
+        h("div", { class: "row" },
+          h("a", { class: "btn", href: Update.SITE + "#themes", target: "_blank", rel: "noopener" }, "Gallery of themes"),
+          h("a", { class: "btn", href: Update.SITE + "creator/", target: "_blank", rel: "noopener" }, "Creator"))));
+  }
+
+  // ---- updates ---------------------------------------------------------------------------------
+
+  // Asks the site of the project for versions.json at most every two hours, and only while this page is open.
+  async function checkUpdate(force) {
+    const version = app.state && app.state.version;
+    if (!version) return "unknown";
+    let cached = null;
+    try { cached = JSON.parse(stored("dekatron-versions") || "null"); } catch (error) { /* it will be asked again */ }
+    let data = cached && cached.data;
+    let reached = !!cached;
+    if (force || !cached || Update.due(cached.at)) {
+      try {
+        const control = new AbortController();
+        const timer = setTimeout(() => control.abort(), 8000);
+        const response = await fetch(Update.SITE + "versions.json", { cache: "no-store", signal: control.signal });
+        clearTimeout(timer);
+        if (!response.ok) throw new Error(`error ${response.status}`);
+        data = await response.json();
+        store("dekatron-versions", JSON.stringify({ at: Date.now(), data }));
+        reached = true;
+      } catch (error) {
+        reached = false; // no internet, or the site is down: the page keeps working without the notice
+      }
+    }
+    app.update = Update.pick(data, version, "full");
+    return app.update ? "new" : reached ? "current" : "offline";
+  }
+
+  function installUpdate() {
+    const release = app.update;
+    const box = dialog(`Update to ${release.version}?`, h("div", {},
+      release.notes ? h("p", { class: "notes-text" }, release.notes) : "",
+      h("p", { class: "muted" }, "The page downloads the firmware from the site of the project, checks it, and sends it to the clock. The clock restarts, and goes back to the old firmware if the new one does not start.")), [
+      h("button", { class: "btn primary", onclick: async () => {
+        box.close();
+        const progress = h("progress", { max: 1, value: 0 });
+        const shown = dialog("Downloading the firmware…", progress, []);
+        try {
+          const response = await fetch(release.url);
+          if (!response.ok) throw new Error(`error ${response.status}`);
+          const total = +response.headers.get("content-length") || 0;
+          const reader = response.body.getReader();
+          const chunks = [];
+          let received = 0;
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            if (total) progress.value = received / total;
+          }
+          const bytes = new Uint8Array(received);
+          let at = 0;
+          for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+          if (Update.sha256(bytes) !== release.sha256) throw new Error("The download does not match its checksum, so it was not sent");
+          shown.close();
+          await sendFirmware(bytes);
+        } catch (error) {
+          shown.close();
+          toast(error.message, true);
+        }
+      } }, "Update"),
+      h("button", { class: "btn", onclick: () => box.close() }, "Later"),
+    ]);
   }
 
   // ---- settings --------------------------------------------------------------------------------
 
-  const kilobytes = (bytes) => (bytes >= 1048576 ? (bytes / 1048576).toFixed(2) + " MB" : Math.round(bytes / 1024) + " KB");
+  function cardFirmware(state) {
+    const release = app.update;
+    const check = h("button", { class: "btn", onclick: async () => {
+      const result = await checkUpdate(true);
+      toast(result === "new" ? `Version ${app.update.version} is available` : result === "current" ? "The firmware is up to date" : result === "offline" ? "The site of the project cannot be reached from this device" : "This firmware does not say its version", result === "offline");
+      render();
+    } }, "Check for updates");
+    return card("Firmware",
+      h("p", { class: "muted" }, `${state.version ? `Version ${state.version}. ` : ""}Built ${state.build || "at an unknown time"}.`),
+      release ? h("div", { class: "notice" },
+        h("div", { class: "name" }, `Version ${release.version} is available`), release.date ? h("div", { class: "muted" }, release.date) : "",
+        state.settings.password
+          ? h("div", { class: "row" }, h("button", { class: "btn primary", onclick: installUpdate }, "Update"))
+          : h("p", { class: "muted" }, "Set a password first. Nobody should be able to send a program to the clock without one.")) : "",
+      h("div", { class: "row" }, check),
+      h("p", { class: "muted" }, "The page asks the site of the project about new versions, at most every two hours, and the clock never goes to the internet. You can also upload a firmware.ota.bin in Files."));
+  }
 
   function viewSettings() {
     const state = app.state;
@@ -747,16 +720,6 @@
     };
     const detected = Zones.detect();
     const fresh = h("input", { type: "password", placeholder: "New password", autocomplete: "new-password", class: "grow", maxlength: 64 });
-    const restore = h("input", { type: "file", hidden: true, onchange: async (event) => {
-      try {
-        setWorking(Store.parse(new Uint8Array(await event.target.files[0].arrayBuffer())), true);
-        toast("Backup loaded. Apply it to send it to the clock");
-        render();
-      } catch (error) {
-        toast(error.message, true);
-      }
-    } });
-    const firmwareFile = h("input", { type: "file", accept: ".bin", hidden: true, onchange: (event) => event.target.files[0] && sendFirmware(event.target.files[0]) });
     const uptime = state.uptime_s;
 
     return h("div", {},
@@ -766,7 +729,6 @@
           h("button", { class: "btn primary", onclick: save }, "Save"),
           detected ? h("button", { class: "btn", onclick: () => { store("dekatron-zone", detected.id); act(() => call("POST", "/api/settings", { timezone: detected.tz }), "Saved"); } }, `Use ${detected.id}`) : ""),
         h("p", { class: "muted" }, current || "Not set")),
-      cardDisplay(state.controls || {}),
       card("Password",
         h("p", { class: "muted" }, state.settings.password ? "A password is set." : "Without one, anybody on your network can change the clock."),
         h("div", { class: "row" }, fresh,
@@ -780,18 +742,7 @@
             app.password = null;
             sessionStorage.removeItem("dekatron-password");
           }, "Saved") }, "Remove") : "")),
-      card("Backup",
-        h("p", { class: "muted" }, `The faces and the theme of the clock, ${kilobytes(state.store.size)}. Keep a copy before trying things.`),
-        h("div", { class: "row" },
-          h("button", { class: "btn", disabled: !state.store.ready, onclick: download }, "Download"),
-          h("button", { class: "btn", onclick: () => restore.click() }, "Restore from a file"), restore)),
-      card("Firmware",
-        h("p", { class: "muted" }, `Built ${state.build || "at an unknown time"}.`),
-        state.settings.password
-          ? h("div", {},
-            h("p", { class: "muted" }, "Choose firmware.ota.bin of a newer release. The clock checks it, restarts, and keeps the old firmware if the new one does not start."),
-            h("div", { class: "row" }, h("button", { class: "btn", onclick: () => firmwareFile.click() }, "Choose a file"), firmwareFile))
-          : h("p", { class: "muted" }, "Set a password first. Nobody should be able to send a program to the clock without one.")),
+      cardFirmware(state),
       card("About",
         h("p", { class: "muted" }, `${state.name} · ESPHome ${state.esphome}`),
         h("p", { class: "muted" }, `Up ${Math.floor(uptime / 3600)} h ${Math.floor(uptime / 60) % 60} min · ${kilobytes(state.free_heap)} of memory free`)));
@@ -800,7 +751,7 @@
   // ---- the page --------------------------------------------------------------------------------
 
   function render() {
-    const views = { clock: viewClock, style: viewStyle, settings: viewSettings };
+    const views = { clock: viewClock, files: viewFiles, settings: viewSettings };
     app.shown = signature();
     const modeButton = h("button", { class: "mode", "aria-label": isDark() ? "Light mode" : "Dark mode", onclick: () => {
       setMode(!isDark());
@@ -808,10 +759,9 @@
       render();
     } }, icon(isDark() ? "sun" : "moon"));
     const nav = h("nav", {}, h("div", {}, VIEWS.map((name) =>
-      h("button", { class: name === app.view ? "on" : "", onclick: () => go(name) }, icon(name), TITLES[name]))));
+      h("button", { class: (name === app.view ? "on" : "") + (name === "settings" && app.update ? " dot" : ""), onclick: () => go(name) }, icon(name), TITLES[name]))));
     $("#app").replaceChildren(
       h("header", {}, h("div", { class: "brand" }, "Deka", h("b", {}, "tron")), h("div", { class: "head" }, h("span", { class: "pill", id: "status" }), modeButton)),
-      pendingBar(),
       app.state ? views[app.view]() : h("p", { class: "muted" }, app.offline ? "The clock is not reachable." : "Loading…"),
       nav,
     );

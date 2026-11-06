@@ -64,7 +64,7 @@ Clips with lights say `"leds": true` in `clips` of the state.
 
 ## Replacing the store
 
-The store is one file made by `tools/make_clips.py` (see its help). It holds up to four clock faces, and a **theme**: its name and data, and the four animations `boot`, `connecting`, `online` and `countdown_end` that the clock always needs. A new store replaces the whole previous one. A file with only a theme, such as the one `tools/make_scenes.py` writes, is what the page takes for Change theme, keeping the faces.
+The store is one file made by `tools/make_clips.py` (see its help). It holds up to four clock faces, and a **theme**: its name and data, and the four animations `boot`, `connecting`, `online` and `countdown_end` that the clock always needs. A new store replaces the whole previous one. A file with only a theme, such as the one `tools/make_scenes.py` writes, is what the Files tab of the page takes as a theme, keeping the faces. See [format.md](format.md).
 
 ```bash
 curl -X POST http://elekstube.local/api/store -H "X-Dekatron: 1" \

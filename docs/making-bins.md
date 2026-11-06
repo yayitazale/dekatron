@@ -69,4 +69,4 @@ Without a terminal, ask the assistant for the pictures only (four GIFs of 1370 Ã
 
 ## Putting it on the clock
 
-Open the page of the clock and upload the `.bin`: a theme with **Change theme** in the Style tab, a face as a new face there. (The simplified page will have one Files tab that takes any of them and says what the file is and who made it before it changes anything.) Download a backup first if you want to keep what the clock has.
+Open the page of the clock, go to **Files** and upload the `.bin`. The page says what the file is and who made it before it changes anything, and a theme keeps your faces. Download a backup first if you want to keep what the clock has.
