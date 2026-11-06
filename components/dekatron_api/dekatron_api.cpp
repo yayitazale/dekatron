@@ -357,6 +357,8 @@ void DekatronApi::send_state_(AsyncWebServerRequest *request) {
 
   std::string json = "{\"name\":";
   append_json_string(json, App.get_name().c_str());
+  json += ",\"version\":";
+  append_json_string(json, ESPHOME_PROJECT_VERSION);
   json += ",\"esphome\":";
   append_json_string(json, ESPHOME_VERSION);
   json += ",\"build\":";

@@ -1,5 +1,9 @@
 # The clock itself. Every profile needs this package.
 esphome:
+  # The version is written by scripts/release.py from the file VERSION.
+  project:
+    name: yayitazale.dekatron
+    version: "0.0.0"
   on_boot:
     priority: 600
     then:

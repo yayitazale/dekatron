@@ -18,7 +18,7 @@ The clock speaks plain HTTP, so on a network you do not trust a password can be 
 |---|---|
 | `GET /` | The [web page](web.md) of the clock. Public |
 | `GET /api/info` | Who this is. Public: `product`, `api`, `name`, `auth` |
-| `GET /api/state` | State, settings, the faces and clips it has, the name of its theme, memory and store status |
+| `GET /api/state` | State, settings, the faces and clips it has, the name of its theme, memory and store status, and `version`, the release of Dekatron it runs (from `VERSION`) |
 | `GET /api/store` | The store as it is in flash, a file of up to 1152 KB |
 | `POST /api/store` | Replaces the store with the body, as `application/octet-stream` |
 | `POST /api/play` | Starts an animation, with the JSON of the [MQTT play topic](../ha/README.md) |
