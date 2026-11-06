@@ -611,7 +611,7 @@
       card("Make your own",
         h("p", { class: "muted" }, "Themes and faces are made on the site of the project, in your browser, and come out as a file to upload here. The site cannot talk to the clock itself."),
         h("div", { class: "row" },
-          h("a", { class: "btn", href: Update.SITE + "#themes", target: "_blank", rel: "noopener" }, "Gallery of themes"),
+          h("a", { class: "btn", href: Update.SITE + "themes", target: "_blank", rel: "noopener" }, "Gallery of themes"),
           h("a", { class: "btn", href: Update.SITE + "creator/", target: "_blank", rel: "noopener" }, "Creator"))));
   }
 

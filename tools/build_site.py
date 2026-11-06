@@ -4,10 +4,10 @@
 
 Usage: python tools/build_site.py
 
-site/creator.template.html becomes site/creator/index.html with the style of the clock's page and the scripts
-that make a theme, and site/index.template.html becomes site/index.html, the landing page. Each page is one
-file that works from a folder as well as from the web. The gallery of themes is built apart, by
-tools/build_themes.py, into site/themes/.
+site/creator.template.html becomes docs/public/creator/index.html with the style of the clock's page and the
+scripts that make a theme. The page is one file that works from a folder as well as from the web, and the
+site of the project (docs/, built with VitePress) serves it as it is. The gallery of themes is built apart,
+by tools/build_themes.py, into docs/public/themes/.
 """
 
 import sys
@@ -19,10 +19,7 @@ ROOT = Path(__file__).parent.parent
 SITE = ROOT / "site"
 SCRIPTS = (ROOT / "web" / "store.js", SITE / "scene.js", SITE / "creator.js", SITE / "creator-page.js")
 TEMPLATE = SITE / "creator.template.html"
-OUTPUT = SITE / "creator" / "index.html"
-LANDING_TEMPLATE = SITE / "index.template.html"
-LANDING_OUTPUT = SITE / "index.html"
-LANDING_SCRIPTS = (SITE / "site-page.js",)
+OUTPUT = ROOT / "docs" / "public" / "creator" / "index.html"
 
 
 def build_page(template, scripts, extra_css=()):
@@ -38,15 +35,10 @@ def build_creator():
     return build_page(TEMPLATE, SCRIPTS)
 
 
-def build_landing():
-    return build_page(LANDING_TEMPLATE, LANDING_SCRIPTS, (SITE / "site.css",))
-
-
 def main():
-    for output, page in ((OUTPUT, build_creator()), (LANDING_OUTPUT, build_landing())):
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(page, encoding="utf-8")
-        print(f"wrote {output.relative_to(ROOT)}")
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(build_creator(), encoding="utf-8")
+    print(f"wrote {OUTPUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

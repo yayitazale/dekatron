@@ -57,4 +57,4 @@ python tools/check_api.py elekstube.local store.bin  # the API, against a real c
 
 ## The creator
 
-The creator of themes and faces is a page of its own, `site/creator/index.html`, for the static site of the project. `python tools/build_site.py` builds it from `site/creator.template.html`, `site/creator-page.js` and the libraries `web/store.js`, `site/scene.js` and `site/creator.js`. The encoder in `site/scene.js` is tested byte for byte against `tools/make_scenes.py` in `tests/scene.test.js`.
+The creator of themes and faces is a page of its own, `docs/public/creator/index.html`, which the static site of the project serves as it is. `python tools/build_site.py` builds it from `site/creator.template.html`, `site/creator-page.js` and the libraries `web/store.js`, `site/scene.js` and `site/creator.js`. The encoder in `site/scene.js` is tested byte for byte against `tools/make_scenes.py` in `tests/scene.test.js`.

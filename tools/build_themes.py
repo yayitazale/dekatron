@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Build the themes of the gallery: a .theme.bin and a preview for each, and the index the site reads.
 
-Usage: python tools/build_themes.py [--themes themes] [--out site/themes] [ID ...]
+Usage: python tools/build_themes.py [--themes themes] [--out docs/public/themes] [ID ...]
 
 Each folder themes/ID/ has a theme.json. Either {"builder": "make_scenes"}, for the theme that is drawn by
 code, or a theme made from pictures:
@@ -73,7 +73,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("ids", nargs="*", help="only these themes")
     parser.add_argument("--themes", type=Path, default=ROOT / "themes")
-    parser.add_argument("--out", type=Path, default=ROOT / "site" / "themes")
+    parser.add_argument("--out", type=Path, default=ROOT / "docs" / "public" / "themes")
     args = parser.parse_args()
 
     folders = sorted(path.parent for path in args.themes.glob("*/theme.json"))

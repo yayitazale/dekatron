@@ -1,0 +1,26 @@
+/* The amber of the tubes as the brand color of the default theme of VitePress. */
+:root {
+  --vp-c-brand-1: #b86e00;
+  --vp-c-brand-2: #d98200;
+  --vp-c-brand-3: #e08a00;
+  --vp-c-brand-soft: rgb(224 138 0 / .14);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #ffb020 30%, #ff7a59);
+}
+.dark {
+  --vp-c-brand-1: #ffb020;
+  --vp-c-brand-2: #ffc24d;
+  --vp-c-brand-3: #e89a00;
+  --vp-c-brand-soft: rgb(255 176 32 / .16);
+}
+.VPButton.brand { color: #1b1b1f !important; }
+.vp-doc table { display: table; width: 100%; }
+.gallery { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin: 20px 0; }
+.theme-card { border: 1px solid var(--vp-c-divider); border-radius: 12px; overflow: hidden; background: var(--vp-c-bg-soft); }
+.theme-card img { display: block; width: 100%; aspect-ratio: 685 / 120; object-fit: cover; background: #050505; }
+.theme-card .body { padding: 14px 18px 18px; }
+.theme-card .name { font-size: 18px; font-weight: 650; }
+.theme-card .meta { color: var(--vp-c-text-2); font-size: 13px; margin-top: 2px; }
+.theme-card p { margin: 10px 0 12px; font-size: 14px; line-height: 1.5; }
+.theme-card a.download { display: inline-block; padding: 6px 16px; border-radius: 20px; background: var(--vp-button-brand-bg); color: #1b1b1f; font-weight: 600; font-size: 14px; text-decoration: none; }
+.theme-card a.download:hover { background: var(--vp-button-brand-hover-bg); }
