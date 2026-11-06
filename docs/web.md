@@ -6,7 +6,7 @@ It is in English, light or dark following your device, and made for a phone firs
 
 - **Clock:** the controls of the clock: displays (on and brightness), lights (on, color, brightness, effect), the display (12 or 24 hours, zero before the hour, digit change, night mode), the face that is shown, a countdown and a few effects.
 - **Files:** upload a file, see what is on the clock, and keep a backup.
-- **Settings:** timezone, whether the startup animation plays, a password, the firmware and its updates, and a few details of the clock.
+- **Settings:** timezone, a password, the firmware and its updates, and a few details of the clock.
 
 ## Files
 
