@@ -22,9 +22,9 @@ TEMPLATE = SITE / "creator.template.html"
 OUTPUT = ROOT / "docs" / "public" / "creator" / "index.html"
 
 
-def build_page(template, scripts, extra_css=()):
+def build_page(template, scripts, styles):
     page = template.read_text(encoding="utf-8")
-    css = squeeze_css("\n".join(path.read_text(encoding="utf-8") for path in (ROOT / "web" / "style.css", *extra_css)))
+    css = squeeze_css("\n".join(path.read_text(encoding="utf-8") for path in styles))
     script = "\n".join(path.read_text(encoding="utf-8") for path in scripts)
     if "</script" in script:
         sys.exit("A script contains </script")
@@ -32,7 +32,7 @@ def build_page(template, scripts, extra_css=()):
 
 
 def build_creator():
-    return build_page(TEMPLATE, SCRIPTS)
+    return build_page(TEMPLATE, SCRIPTS, (SITE / "creator.css",))
 
 
 def main():

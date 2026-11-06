@@ -23,7 +23,16 @@
   const card = (title, ...content) => h("section", { class: "card" }, h("h2", {}, title), content);
   const kilobytes = (bytes) => `${Math.round(bytes / 1024)} KB`;
 
-  document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // Light or dark as the rest of the website: it keeps the choice in the key of VitePress.
+  const appearance = document.getElementById("appearance");
+  const showMode = () => { appearance.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; };
+  showMode();
+  appearance.addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    try { localStorage.setItem("vitepress-theme-appearance", dark ? "dark" : "light"); } catch (error) { /* storage can be off */ }
+    showMode();
+  });
 
   function dialog(title, content, buttons) {
     const box = h("dialog", {}, h("h3", {}, title), content, h("div", { class: "row" }, buttons));
@@ -99,7 +108,8 @@
   }
 
   document.getElementById("app").append(
-    h("header", {}, h("div", { class: "brand" }, "Deka", h("b", {}, "tron"), " themes")),
+    h("h1", {}, "Theme creator"),
+    h("p", { class: "lead" }, "Make a theme for your clock in your browser. Nothing leaves your computer."),
     card("Create a theme",
       h("p", { class: "muted" }, "A theme is four animations: when the clock starts, while it connects, when it is connected and at the end of a countdown. Use an animated GIF, WebP or PNG, a video, or a numbered series of images for each. The animation crosses the six tubes as one wide strip, nearly six times as wide as tall. Nothing leaves your computer."),
       h("div", { class: "row" }, name), h("div", { class: "row" }, author), h("div", { class: "row" }, about), h("div", { class: "row" }, h("span", { class: "muted" }, "License"), license),
