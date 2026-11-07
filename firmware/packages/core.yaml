@@ -27,6 +27,10 @@ logger:
 
 safe_mode:
 
+# Losing the network must not reboot the clock either (the default is 15 min without Wi-Fi).
+wifi:
+  reboot_timeout: 0s
+
 time:
   - platform: sntp
     timezone: ${timezone}

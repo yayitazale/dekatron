@@ -1,5 +1,6 @@
 # Optional control over MQTT, with Home Assistant discovery. The API is described in ha/README.md.
 mqtt:
+  reboot_timeout: 0s
   broker: !secret mqtt_broker
   username: !secret mqtt_username
   password: !secret mqtt_password
