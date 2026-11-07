@@ -1,4 +1,8 @@
 # Native ESPHome API, used by Home Assistant and the ESPHome dashboard. Without a key here, the
 # clock gets one the first time it is set up from Home Assistant.
+#
+# A clock keeps telling the time when nobody is connected, so it must not reboot for lack of a client
+# (the default reboot_timeout is 15 min, and then the clock restarts again and again).
 api:
   encryption:
+  reboot_timeout: 0s
